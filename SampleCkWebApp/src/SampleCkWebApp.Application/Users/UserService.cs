@@ -1,98 +1,84 @@
-// ============================================================================
-// FILE: UserService.cs
-// ============================================================================
-// WHAT: Application service implementation for user business operations.
-//
-// WHY: This service exists in the Application layer to orchestrate user-related
-//      business logic. It coordinates between domain entities, validation,
-//      and persistence. This is where use cases are implemented - it knows
-//      HOW to perform user operations by combining validation, domain logic,
-//      and data access. It keeps controllers thin by handling all business
-//      logic here rather than in the presentation layer.
-//
-// WHAT IT DOES:
-//      - Implements IUserService interface with three operations:
-//        GetUsersAsync, GetUserByIdAsync, and CreateUserAsync
-//      - Validates user input using UserValidator before processing
-//      - Checks for duplicate emails before creating users
-//      - Hashes passwords using BCrypt before persistence
-//      - Coordinates with IUserRepository for data access
-//      - Returns domain entities and application DTOs wrapped in ErrorOr
-// ============================================================================
-
 using ErrorOr;
-using SampleCkWebApp.Domain.Entities;
-using SampleCkWebApp.Domain.Errors;
-using SampleCkWebApp.Application.Users.Data;
+using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using SampleCkWebApp.Application.Users.Interfaces.Application;
-using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
+using Contracts.DTOs.User;
+using Domain.Entities;
+using api.Mappers;
+using Domain.Errors;
 
 namespace SampleCkWebApp.Application.Users;
 
-/// <summary>
-/// Application service for user operations.
-/// Orchestrates domain logic and coordinates with the repository.
-/// </summary>
 public class UserService : IUserService
 {
-    private readonly IUserRepository _userRepository;
+    private readonly IRepository<User> _userRepository;
+    private readonly IRepository<Currency> _currencyRepository;
 
-    public UserService(IUserRepository userRepository)
+    public UserService(IRepository<User> userRepository, IRepository<Currency> currencyRepository)
     {
         _userRepository = userRepository;
+        _currencyRepository = currencyRepository;
     }
-    
-    public async Task<ErrorOr<GetUsersResult>> GetUsersAsync(CancellationToken cancellationToken)
+
+    public async Task<ErrorOr<IEnumerable<UserDto>>> GetAllUsersAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _userRepository.GetUsersAsync(cancellationToken);
-        if (result.IsError)
-        {
-            return result.Errors;
-        }
-        
-        return new GetUsersResult
-        {
-            Users = result.Value
-        };
+        var users = await _userRepository.GetAllAsync();
+        return users.Select(u => u.ToDto()).ToList();
     }
-    
-    public async Task<ErrorOr<User>> GetUserByIdAsync(int id, CancellationToken cancellationToken)
+
+    public async Task<ErrorOr<UserDto>> GetUserByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        var result = await _userRepository.GetUserByIdAsync(id, cancellationToken);
-        return result;
+        var user = await _userRepository.GetByIdAsync(id);
+        if (user == null)
+            return UserErrors.NotFound;
+
+        return user.ToDto();
     }
-    
-    public async Task<ErrorOr<User>> CreateUserAsync(string name, string email, string password, CancellationToken cancellationToken)
+
+    public async Task<ErrorOr<UserDto>> UpdateUserAsync(int id, UpdateUserDto request, CancellationToken cancellationToken = default)
     {
-        var validationResult = UserValidator.ValidateCreateUserRequest(name, email, password);
-        if (validationResult.IsError)
+        var user = await _userRepository.GetByIdAsync(id);
+        if (user == null)
+            return UserErrors.NotFound;
+
+        // Apply updates only if provided
+        if (request.Name != null)
+            user.Name = request.Name;
+
+        if (request.Email != null)
         {
-            return validationResult.Errors;
+            // Check if new email already exists
+            var existingUsers = await _userRepository.GetAllAsync();
+            if (existingUsers.Any(u => u.Email == request.Email && u.Id != id))
+                return UserErrors.DuplicateEmail;
+
+            user.Email = request.Email;
         }
-        
-        // Check if user with email already exists
-        var existingUser = await _userRepository.GetUserByEmailAsync(email, cancellationToken);
-        if (!existingUser.IsError)
+
+        if (request.CurrencyId.HasValue)
         {
-            return UserErrors.DuplicateEmail;
+            // Validate currency exists
+            var currencyExists = await _currencyRepository.GetByIdAsync(request.CurrencyId.Value);
+            if (currencyExists == null)
+                return UserErrors.InvalidCurrency;
+
+            user.CurrencyId = request.CurrencyId.Value;
         }
-        
-        // Hash the password (BCrypt automatically generates salt)
-        var passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
-        
-        // Create domain entity
-        var user = new User
-        {
-            Name = name,
-            Email = email,
-            PasswordHash = passwordHash,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        
-        // Persist the user
-        var createResult = await _userRepository.CreateUserAsync(user, cancellationToken);
-        return createResult;
+
+        await _userRepository.UpdateAsync(user);
+        await _userRepository.SaveChangesAsync();
+
+        return user.ToDto();
+    }
+
+    public async Task<ErrorOr<Success>> DeleteUserAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(id);
+        if (user == null)
+            return UserErrors.NotFound;
+
+        await _userRepository.DeleteAsync(user);
+        await _userRepository.SaveChangesAsync();
+
+        return Result.Success;
     }
 }
-

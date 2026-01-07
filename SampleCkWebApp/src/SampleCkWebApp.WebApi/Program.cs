@@ -1,4 +1,7 @@
-﻿using SampleCkWebApp.Application;
+﻿using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using SampleCkWebApp.Application;
 using SampleCkWebApp.WebApi;
 using Serilog;
 
@@ -25,6 +28,28 @@ var builder = WebApplication.CreateBuilder(args);
     
     builder.Services.AddControllers();
 
+    //  Add Authentication
+
+    builder.Services
+        .AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        })
+        .AddJwtBearer(options =>
+        {
+            var jwtSecret = builder.Configuration["Jwt:Secret"];
+
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = true
+            };
+        });
+
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
     {
@@ -37,6 +62,31 @@ var builder = WebApplication.CreateBuilder(args);
             {
                 Name = "API Support",
                 Email = "support@expensetracker.com"
+            }
+        });
+
+        c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+            Scheme = "Bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+            Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\""
+        });
+
+        c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+        {
+            {
+                new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                {
+                    Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                    {
+                        Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                new string[] { }
             }
         });
         
@@ -68,13 +118,20 @@ Log.Logger.Information("Application starting");
 var app = builder.Build();
 {
     app.UseRouting();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
     
     // Save service provider to static class
     ServicePool.Create(app.Services);
 
     // Add exception handler and request logging
     app.UseExceptionHandler("/error");
-    
+
+    // Redirection from HTTP to HTTPS
+    app.UseHttpsRedirection();
+
+
     app.UseSerilogRequestLogging(options =>
     {
         options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
@@ -83,6 +140,7 @@ var app = builder.Build();
         };
     });
     
+
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {

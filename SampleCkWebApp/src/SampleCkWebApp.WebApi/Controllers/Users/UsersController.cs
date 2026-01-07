@@ -1,34 +1,11 @@
-// ============================================================================
-// FILE: UsersController.cs
-// ============================================================================
-// WHAT: ASP.NET Core API controller for user management endpoints.
-//
-// WHY: This controller exists in the WebApi (presentation) layer to handle
-//      HTTP requests and responses for user operations. It's the entry point
-//      for the API and is responsible only for HTTP concerns (routing, status
-//      codes, request/response formatting). All business logic is delegated
-//      to the Application layer (UserService), keeping this controller thin
-//      and focused on presentation concerns.
-//
-// WHAT IT DOES:
-//      - Exposes three REST endpoints:
-//        * GET /users - Retrieves all users
-//        * GET /users/{id} - Retrieves a specific user by ID
-//        * POST /users - Creates a new user
-//      - Delegates business logic to IUserService
-//      - Maps service results to API responses using UserMappings
-//      - Handles HTTP status codes and error responses
-//      - Includes Swagger/OpenAPI documentation attributes
-//      - Uses ErrorOr pattern for functional error handling
-// ============================================================================
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using SampleCkWebApp.Users;
 using SampleCkWebApp.Application.Users.Interfaces.Application;
-using SampleCkWebApp.Application.Users.Mappings;
 using SampleCkWebApp.WebApi.Controllers;
+using SampleCkWebApp.Contracts.DTOs.User;
+using Contracts.DTOs.User;
+using Microsoft.AspNetCore.Authorization;
 
 namespace SampleCkWebApp.WebApi.Controllers.Users;
 
@@ -36,15 +13,17 @@ namespace SampleCkWebApp.WebApi.Controllers.Users;
 /// Controller for managing users in the expense tracker system
 /// </summary>
 [ApiController]
-[Route("[controller]")]
+[Route("api/[controller]")]
 [Produces("application/json")]
 public class UsersController : ApiControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IAuthService _authService;
     
-    public UsersController(IUserService userService)
+    public UsersController(IUserService userService, IAuthService authService)
     {
         _userService = userService;
+        _authService = authService;
     }
     
     /// <summary>
@@ -53,17 +32,18 @@ public class UsersController : ApiControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of all users</returns>
     /// <response code="200">Successfully retrieved users</response>
-    /// <response code="500">Internal server error</response>
+    /// <response code="500">Internal server error</response>,
+    [Authorize]
     [HttpGet]
-    [ProducesResponseType(typeof(GetUsersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IEnumerable<UserDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
     {
-        var result = await _userService.GetUsersAsync(cancellationToken);
+        var result = await _userService.GetAllUsersAsync(cancellationToken);
         
         return result.Match(
-            users => Ok(users.ToResponse()),
-            Problem);
+            users => Ok(users.ToList()),  //  Convert to response
+            Problem);  
     }
     
     /// <summary>
@@ -75,8 +55,9 @@ public class UsersController : ApiControllerBase
     /// <response code="200">User found and returned</response>
     /// <response code="404">User not found</response>
     /// <response code="500">Internal server error</response>
+    [Authorize]
     [HttpGet("{id}")]
-    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetUserById(
@@ -86,38 +67,117 @@ public class UsersController : ApiControllerBase
         var result = await _userService.GetUserByIdAsync(id, cancellationToken);
         
         return result.Match(
-            user => Ok(user.ToResponse()),
+            user => Ok(user),
             Problem);
     }
     
     /// <summary>
-    /// Creates a new user in the system
+    /// Registers a new user in the system
     /// </summary>
-    /// <param name="request">User creation request containing name, email, and password</param>
+    /// <param name="request">User registration request containing name, email, password, and currency</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>The newly created user</returns>
-    /// <response code="201">User successfully created</response>
-    /// <response code="400">Validation error (invalid name, email, or password)</response>
+    /// <returns>Authentication response with token and user information</returns>
+    /// <response code="201">User successfully registered</response>
+    /// <response code="400">Validation error (invalid name, email, password, or currency)</response>
     /// <response code="409">User with this email already exists</response>
     /// <response code="500">Internal server error</response>
-    [HttpPost]
-    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+    [HttpPost("register")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> CreateUser(
-        [FromBody, Required] CreateUserRequest request, 
+    public async Task<IActionResult> Register(
+        [FromBody, Required] RegisterUserDto request, 
         CancellationToken cancellationToken)
     {
-        var result = await _userService.CreateUserAsync(
-            request.Name,
-            request.Email,
-            request.Password,
-            cancellationToken);
+        var result = await _authService.RegisterAsync(request, cancellationToken);
         
         return result.Match(
-            user => CreatedAtAction(nameof(GetUserById), new { id = user.Id }, user.ToResponse()),
+            authResponse => CreatedAtAction(nameof(GetUserById), new { id = authResponse.User.Id }, authResponse),  // ✅ Return authResponse (includes token)
+            Problem);
+    }
+
+    /// <summary>
+    /// Authenticates a user and returns a JWT token
+    /// </summary>
+    /// <param name="request">Login request containing email and password</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Authentication response with token and user information</returns>
+    /// <response code="200">User successfully authenticated</response>
+    /// <response code="400">Validation error (invalid email or password format)</response>
+    /// <response code="401">Invalid email or password</response>
+    /// <response code="429">Too many login attempts - account locked</response>
+    /// <response code="500">Internal server error</response>
+    [HttpPost("login")]  
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> Login(
+        [FromBody, Required] LoginUserDto request, 
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.LoginAsync(request, cancellationToken);
+        
+        return result.Match(
+            authResponse => Ok(authResponse),  //  Return 200 OK (not 201 Created)
+            Problem);
+    }
+
+    /// <summary>
+    /// Updates an existing user
+    /// </summary>
+    /// <param name="id">The unique identifier of the user</param>
+    /// <param name="request">User update request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The updated user</returns>
+    /// <response code="200">User successfully updated</response>
+    /// <response code="400">Validation error</response>
+    /// <response code="404">User not found</response>
+    /// <response code="409">Email already exists for another user</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpPut("{id}")]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> UpdateUser(
+        [FromRoute, Required] int id,
+        [FromBody, Required] UpdateUserDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userService.UpdateUserAsync(id, request, cancellationToken);
+        
+        return result.Match(
+            user => Ok(user),
+            Problem);
+    }
+
+    /// <summary>
+    /// Deletes a user from the system
+    /// </summary>
+    /// <param name="id">The unique identifier of the user</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>No content on success</returns>
+    /// <response code="204">User successfully deleted</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DeleteUser(
+        [FromRoute, Required] int id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userService.DeleteUserAsync(id, cancellationToken);
+        
+        return result.Match(
+            _ => NoContent(),  //  Returns 204 No Content on success
             Problem);
     }
 }
-

@@ -1,178 +1,58 @@
-// ============================================================================
-// FILE: UserRepository.cs
-// ============================================================================
-// WHAT: PostgreSQL implementation of the user repository interface.
-//
-// WHY: This repository exists in the Infrastructure layer to handle all
-//      database operations for users. It implements IUserRepository (defined
-//      in Application layer) following the Dependency Inversion Principle.
-//      By keeping database-specific code (Npgsql, SQL queries) here, the
-//      Application layer remains database-agnostic. If we need to switch
-//      databases, only this file changes, not the business logic.
-//
-// WHAT IT DOES:
-//      - Implements IUserRepository interface with PostgreSQL/Npgsql
-//      - Executes SQL queries to: get all users, get user by ID, get user by
-//        email, and create new users
-//      - Maps database records to User domain entities
-//      - Handles database exceptions (unique violations, connection errors)
-//      - Returns ErrorOr results for consistent error handling
-//      - Uses UserOptions for database connection string configuration
-// ============================================================================
+using Microsoft.EntityFrameworkCore;
+using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
+using Domain.Entities;
+using SampleCkWebApp.Infrastructure.Data;
 
-using ErrorOr;
-using Npgsql;
-using SampleCkWebApp.Domain.Entities;
-using SampleCkWebApp.Domain.Errors;
-using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
-using SampleCkWebApp.Infrastructure.Users.Options;
+namespace SampleCkWebApp.Infrastructure.Users.Repositories;
 
-namespace SampleCkWebApp.Infrastructure.Users;
-
-/// <summary>
-/// PostgreSQL implementation of the user repository.
-/// Maps database records to domain entities.
-/// </summary>
-public class UserRepository : IUserRepository
+public class UserRepository : IRepository<User>
 {
-    private readonly UserOptions _options;
+    private readonly ApplicationDbContext _context;
+    private readonly DbSet<User> _userSet;
 
-    public UserRepository(UserOptions options)
+    public UserRepository(ApplicationDbContext context)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _context = context;
+        _userSet = context.Set<User>();
     }
 
-    public async Task<ErrorOr<List<User>>> GetUsersAsync(CancellationToken cancellationToken)
+    public async Task<User?> GetByIdAsync(int id)
     {
-        try
-        {
-            await using var connection = new NpgsqlConnection(_options.ConnectionString);
-            await connection.OpenAsync(cancellationToken);
-
-            var command = new NpgsqlCommand(
-                "SELECT id, name, email, password_hash, created_at, updated_at FROM users ORDER BY id",
-                connection);
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            var users = new List<User>();
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                users.Add(MapToDomainEntity(reader));
-            }
-
-            return users;
-        }
-        catch (Exception ex)
-        {
-            return Error.Failure("Database.Error", $"Failed to retrieve users: {ex.Message}");
-        }
+        return await _userSet.FirstOrDefaultAsync(u => u.Id == id);
     }
 
-    public async Task<ErrorOr<User>> GetUserByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<IEnumerable<User>> GetAllAsync()
     {
-        try
-        {
-            await using var connection = new NpgsqlConnection(_options.ConnectionString);
-            await connection.OpenAsync(cancellationToken);
-
-            var command = new NpgsqlCommand(
-                "SELECT id, name, email, password_hash, created_at, updated_at FROM users WHERE id = @id",
-                connection);
-            command.Parameters.AddWithValue("id", id);
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            if (!await reader.ReadAsync(cancellationToken))
-            {
-                return UserErrors.NotFound;
-            }
-
-            return MapToDomainEntity(reader);
-        }
-        catch (Exception ex)
-        {
-            return Error.Failure("Database.Error", $"Failed to retrieve user: {ex.Message}");
-        }
+        return await _userSet.ToListAsync();
     }
 
-    public async Task<ErrorOr<User>> GetUserByEmailAsync(string email, CancellationToken cancellationToken)
+    public async Task AddAsync(User entity)
     {
-        try
-        {
-            await using var connection = new NpgsqlConnection(_options.ConnectionString);
-            await connection.OpenAsync(cancellationToken);
-
-            var command = new NpgsqlCommand(
-                "SELECT id, name, email, password_hash, created_at, updated_at FROM users WHERE email = @email",
-                connection);
-            command.Parameters.AddWithValue("email", email);
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            if (!await reader.ReadAsync(cancellationToken))
-            {
-                return UserErrors.NotFound;
-            }
-
-            return MapToDomainEntity(reader);
-        }
-        catch (Exception ex)
-        {
-            return Error.Failure("Database.Error", $"Failed to retrieve user by email: {ex.Message}");
-        }
+        await _userSet.AddAsync(entity);
     }
 
-    public async Task<ErrorOr<User>> CreateUserAsync(User user, CancellationToken cancellationToken)
+    public async Task AddRangeAsync(IEnumerable<User> entities)
     {
-        try
-        {
-            await using var connection = new NpgsqlConnection(_options.ConnectionString);
-            await connection.OpenAsync(cancellationToken);
-
-            var command = new NpgsqlCommand(
-                @"INSERT INTO users (name, email, password_hash, created_at, updated_at) 
-                  VALUES (@name, @email, @password_hash, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
-                  RETURNING id, name, email, password_hash, created_at, updated_at",
-                connection);
-            
-            command.Parameters.AddWithValue("name", user.Name);
-            command.Parameters.AddWithValue("email", user.Email);
-            command.Parameters.AddWithValue("password_hash", user.PasswordHash);
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            if (!await reader.ReadAsync(cancellationToken))
-            {
-                return Error.Failure("Database.Error", "Failed to create user");
-            }
-
-            return MapToDomainEntity(reader);
-        }
-        catch (PostgresException ex) when (ex.SqlState == "23505") // Unique violation
-        {
-            return UserErrors.DuplicateEmail;
-        }
-        catch (Exception ex)
-        {
-            return Error.Failure("Database.Error", $"Failed to create user: {ex.Message}");
-        }
+        await _userSet.AddRangeAsync(entities);
     }
 
-    /// <summary>
-    /// Maps a database reader row to a domain entity.
-    /// </summary>
-    private static User MapToDomainEntity(NpgsqlDataReader reader)
+    public async Task UpdateAsync(User entity)
     {
-        return new User
-        {
-            Id = reader.GetInt32(0),
-            Name = reader.GetString(1),
-            Email = reader.GetString(2),
-            PasswordHash = reader.GetString(3),
-            CreatedAt = reader.GetDateTime(4),
-            UpdatedAt = reader.GetDateTime(5)
-        };
+        _userSet.Update(entity);
+    }
+
+    public async Task DeleteAsync(User entity)
+    {
+        _userSet.Remove(entity);
+    }
+
+    public async Task DeleteRangeAsync(IEnumerable<User> entities)
+    {
+        _userSet.RemoveRange(entities);
+    }
+
+    public async Task SaveChangesAsync()
+    {
+        await _context.SaveChangesAsync();
     }
 }
-

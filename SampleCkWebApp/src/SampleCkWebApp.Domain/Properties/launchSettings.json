@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "SampleCkWebApp.Domain": {
+      "commandName": "Project"
+    }
+  }
+}
