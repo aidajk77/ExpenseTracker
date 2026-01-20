@@ -78,7 +78,7 @@ public class CurrenciesController : ApiControllerBase
     /// <response code="400">Validation error (invalid code, name, or symbol)</response>
     /// <response code="409">Currency with this code already exists</response>
     /// <response code="500">Internal server error</response>
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     [ProducesResponseType(typeof(CurrencyDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

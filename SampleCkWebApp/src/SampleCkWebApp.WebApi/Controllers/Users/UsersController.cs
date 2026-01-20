@@ -45,6 +45,36 @@ public class UsersController : ApiControllerBase
             users => Ok(users.ToList()),  //  Convert to response
             Problem);  
     }
+
+    /// <summary>
+    /// Retrieves the current authenticated user's information
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current user's information</returns>
+    /// <response code="200">Successfully retrieved current user</response>
+    /// <response code="401">User not authenticated</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("me")]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetCurrentUser(CancellationToken cancellationToken)
+    {
+        // Get the user ID from the JWT token claims
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+            return Unauthorized(new { message = "Invalid or missing user ID in token" });
+
+        var result = await _userService.GetUserByIdAsync(userId, cancellationToken);
+        
+        return result.Match(
+            user => Ok(user),
+            Problem);
+    }
     
     /// <summary>
     /// Retrieves a specific user by their ID

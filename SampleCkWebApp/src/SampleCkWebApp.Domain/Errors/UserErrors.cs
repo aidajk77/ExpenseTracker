@@ -52,4 +52,8 @@ public static class UserErrors
 
     public static Error InvalidId =>
         Error.Validation($"{nameof(UserErrors)}.{nameof(InvalidId)}", "Invalid user ID.");
+    
+    public static Error InvalidRole = Error.Validation(
+        code: "User.InvalidRole",
+        description: "The provided role is invalid.");
 }

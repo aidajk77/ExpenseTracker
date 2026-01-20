@@ -10,7 +10,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddCurrencyApplication(this IServiceCollection services)
     {
-        services.TryAddSingleton<ICurrencyService, CurrencyService>();
+        services.AddScoped<ICurrencyService, CurrencyService>();
         services.AddScoped<CurrencyValidator>();
         return services;
     }

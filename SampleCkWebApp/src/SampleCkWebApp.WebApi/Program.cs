@@ -49,6 +49,8 @@ var builder = WebApplication.CreateBuilder(args);
                 ValidateLifetime = true
             };
         });
+    
+    builder.Services.AddAuthorization();
 
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
