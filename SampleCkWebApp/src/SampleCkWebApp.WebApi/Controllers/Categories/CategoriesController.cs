@@ -91,7 +91,7 @@ public class CategoriesController : ApiControllerBase
         var result = await _categoryService.CreateCategoryAsync(request, cancellationToken);
         
         return result.Match(
-            category => CreatedAtAction(nameof(GetCategoryById), new { id = category.Id }, category),  // ✅ Return created category
+            category => CreatedAtAction(nameof(GetCategoryById), new { id = category.Id }, category),  //  Return created category
             Problem);
     }
 

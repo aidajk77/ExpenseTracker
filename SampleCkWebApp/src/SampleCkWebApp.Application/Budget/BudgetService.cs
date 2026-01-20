@@ -47,7 +47,7 @@ namespace SampleCkWebApp.Application.Budgets
             if (existingBudgets.Any(b => b.CategoryId == request.CategoryId
                 && b.Month == request.Month
                 && b.Year == request.Year))
-                return BudgetErrors.DuplicateBudget;  // ✅ Use domain error
+                return BudgetErrors.DuplicateBudget;  //  Use domain error
 
             var budget = request.ToModel();
 

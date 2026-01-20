@@ -35,7 +35,7 @@ namespace SampleCkWebApp.Application.Currencies
             //  Check for duplicate code
             var existingCurrencies = await _currencyRepository.GetAllAsync();
             if (existingCurrencies.Any(c => c.Code == request.Code))
-                return CurrencyErrors.DuplicateCode;  // ✅ Use domain error
+                return CurrencyErrors.DuplicateCode;  //  Use domain error
 
             var currency = request.ToModel();
 
@@ -88,7 +88,7 @@ namespace SampleCkWebApp.Application.Currencies
             {
                 var existingCurrencies = await _currencyRepository.GetAllAsync();
                 if (existingCurrencies.Any(c => c.Code == request.Code))
-                    return CurrencyErrors.DuplicateCode;  // ✅ Use domain error
+                    return CurrencyErrors.DuplicateCode;  //  Use domain error
             }
 
             if (!string.IsNullOrEmpty(request.Code))

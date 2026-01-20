@@ -46,7 +46,7 @@ public class PaymentMethodService : IPaymentMethodService
         //  Check for duplicate name
         var existingMethods = await _paymentMethodRepository.GetAllAsync();
         if (existingMethods.Any(pm => pm.Name == request.Name))
-            return PaymentMethodErrors.DuplicateName;  // ✅ Use domain error
+            return PaymentMethodErrors.DuplicateName;  //  Use domain error
 
         var paymentMethod = request.ToModel();
         await _paymentMethodRepository.AddAsync(paymentMethod);
@@ -72,7 +72,7 @@ public class PaymentMethodService : IPaymentMethodService
         {
             var existingMethods = await _paymentMethodRepository.GetAllAsync();
             if (existingMethods.Any(pm => pm.Name == request.Name))
-                return PaymentMethodErrors.DuplicateName;  // ✅ Use domain error
+                return PaymentMethodErrors.DuplicateName;  //  Use domain error
         }
 
         if (!string.IsNullOrEmpty(request.Name))

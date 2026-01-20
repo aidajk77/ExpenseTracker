@@ -93,7 +93,7 @@ public class UsersController : ApiControllerBase
         var result = await _authService.RegisterAsync(request, cancellationToken);
         
         return result.Match(
-            authResponse => CreatedAtAction(nameof(GetUserById), new { id = authResponse.User.Id }, authResponse),  // ✅ Return authResponse (includes token)
+            authResponse => CreatedAtAction(nameof(GetUserById), new { id = authResponse.User.Id }, authResponse),  //  Return authResponse (includes token)
             Problem);
     }
 

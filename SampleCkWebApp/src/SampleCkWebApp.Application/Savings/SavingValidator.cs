@@ -18,7 +18,7 @@ namespace SampleCkWebApp.Application.Savings
             if (string.IsNullOrWhiteSpace(request.Name))
                 errors.Add(SavingErrors.NameRequired);
             else if (request.Name.Length > 100)
-                errors.Add(SavingErrors.InvalidName);  // ✅ Use domain error
+                errors.Add(SavingErrors.InvalidName);  //  Use domain error
             else if (request.Name.Length < 1)
                 errors.Add(SavingErrors.InvalidName);
 
@@ -51,12 +51,12 @@ namespace SampleCkWebApp.Application.Savings
             if (!string.IsNullOrWhiteSpace(request.Name))
             {
                 if (request.Name.Length > 100 || request.Name.Length < 1)
-                    errors.Add(SavingErrors.InvalidName);  // ✅ Use domain error
+                    errors.Add(SavingErrors.InvalidName);  //  Use domain error
             }
 
             //  Validate Description length if provided
             if (!string.IsNullOrEmpty(request.Description) && request.Description.Length > 500)
-                errors.Add(SavingErrors.InvalidDescription);  // ✅ Use domain error
+                errors.Add(SavingErrors.InvalidDescription);  //  Use domain error
 
             //  Validate TargetAmount if provided
             if (request.TargetAmount.HasValue && request.TargetAmount <= 0)
@@ -64,7 +64,7 @@ namespace SampleCkWebApp.Application.Savings
 
             //  Validate TargetDate if provided
             if (request.TargetDate.HasValue && request.TargetDate <= DateTime.UtcNow)
-                errors.Add(SavingErrors.InvalidTargetDate);  // ✅ Use domain error
+                errors.Add(SavingErrors.InvalidTargetDate);  //  Use domain error
 
             //  Validate Status if provided
             if (request.Status.HasValue && !Enum.IsDefined(typeof(Domain.Enums.SavingStatus), request.Status))
@@ -74,9 +74,9 @@ namespace SampleCkWebApp.Application.Savings
             if (request.UserIds is not null)
             {
                 if (request.UserIds.Count == 0)
-                    errors.Add(SavingErrors.InvalidUsersEmpty);  // ✅ Use domain error
+                    errors.Add(SavingErrors.InvalidUsersEmpty);  //  Use domain error
                 else if (request.UserIds.Any(id => id <= 0))
-                    errors.Add(SavingErrors.InvalidUserIdValue);  // ✅ Use domain error
+                    errors.Add(SavingErrors.InvalidUserIdValue);  //  Use domain error
             }
 
             return errors.Count > 0 ? errors : Result.Success;
