@@ -110,6 +110,20 @@ var builder = WebApplication.CreateBuilder(args);
         // Use full names for better organization
         c.CustomSchemaIds(type => type.FullName);
     });    
+
+    // Add CORS
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AllowFrontend", policy =>
+        {
+            policy.WithOrigins("http://localhost:5173")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        });
+    });
+
+
     builder.Services
         .AddApplication(builder.Configuration)
         .AddInfrastructure(builder.Configuration);
@@ -119,6 +133,8 @@ Log.Logger.Information("Application starting");
 
 var app = builder.Build();
 {
+    app.UseCors("AllowFrontend");
+    
     app.UseRouting();
 
     app.UseAuthentication();
