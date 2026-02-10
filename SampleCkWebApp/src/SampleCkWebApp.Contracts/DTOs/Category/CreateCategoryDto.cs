@@ -9,5 +9,6 @@ namespace Contracts.DTOs.Category
     public class CreateCategoryDto
     {
         public required string Name { get; set; }
+        public decimal AllTimeAmount { get; set; } = 0;
     }
 }

@@ -9,6 +9,8 @@ namespace Domain.Entities
     {
         public int Id { get; set; }
         public required string Name { get; set; }
+
+        public decimal AllTimeAmount { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation

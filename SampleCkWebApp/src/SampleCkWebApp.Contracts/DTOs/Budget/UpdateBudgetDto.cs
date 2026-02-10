@@ -9,5 +9,6 @@ namespace Contracts.DTOs.Budget
     public class UpdateBudgetDto
     {
         public decimal? AmountLimit { get; set; }
+        public decimal? CurrentAmount { get; set; }
     }
 }

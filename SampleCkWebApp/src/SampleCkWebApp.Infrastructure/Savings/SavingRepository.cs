@@ -18,12 +18,18 @@ public class SavingRepository : IRepository<Saving>
 
     public async Task<Saving?> GetByIdAsync(int id)
     {
-        return await _savingSet.FirstOrDefaultAsync(s => s.Id == id);
+        return await _savingSet
+            .Include(s => s.UserSavings)
+            .ThenInclude(us => us.User)
+            .FirstOrDefaultAsync(s => s.Id == id);
     }
 
     public async Task<IEnumerable<Saving>> GetAllAsync()
     {
-        return await _savingSet.ToListAsync();
+        return await _savingSet
+            .Include(s => s.UserSavings)
+            .ThenInclude(us => us.User)
+            .ToListAsync();
     }
 
     public async Task AddAsync(Saving entity)

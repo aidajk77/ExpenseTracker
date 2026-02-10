@@ -26,10 +26,6 @@ namespace SampleCkWebApp.Application.Transaction
             if (request.PaymentMethodId <= 0)
                 errors.Add(TransactionErrors.InvalidPaymentMethod);
 
-            //  Validate Amount
-            if (request.Amount <= 0)
-                errors.Add(TransactionErrors.InvalidAmount);
-
             //  Validate Type (enum)
             if (!Enum.IsDefined(typeof(Domain.Enums.TransactionType), request.Type))
                 errors.Add(TransactionErrors.InvalidType);

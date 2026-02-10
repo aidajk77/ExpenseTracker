@@ -41,8 +41,8 @@ public class UserService : IUserService
             return UserErrors.NotFound;
 
         // Apply updates only if provided
-        if (request.Name != null)
-            user.Name = request.Name;
+        if (request.Username != null)
+            user.Username = request.Username;
 
         if (request.Email != null)
         {

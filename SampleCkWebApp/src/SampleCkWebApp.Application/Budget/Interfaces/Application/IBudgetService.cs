@@ -13,6 +13,7 @@ namespace SampleCkWebApp.Application.Budgets.Interfaces.Application
         Task<ErrorOr<BudgetDto>> GetBudgetByIdAsync(int id, CancellationToken cancellationToken = default);
         Task<ErrorOr<BudgetDto>> CreateBudgetAsync(CreateBudgetDto request, CancellationToken cancellationToken = default);
         Task<ErrorOr<BudgetDto>> UpdateBudgetAsync(int id, UpdateBudgetDto request, CancellationToken cancellationToken = default);
+        Task<ErrorOr<Success>> UpdateCurrentAmountAsync(int budgetId, decimal amountChange, CancellationToken cancellationToken = default);
         Task<ErrorOr<Success>> DeleteBudgetAsync(int id, CancellationToken cancellationToken = default);
     }
 }

@@ -14,7 +14,7 @@ namespace api.Mappers
             return new UserDto
             {
                 Id = user.Id,
-                Name = user.Name,
+                Username = user.Username,
                 Email = user.Email,
                 CreatedAt = user.CreatedAt,
                 CurrencyId = user.CurrencyId
@@ -25,7 +25,7 @@ namespace api.Mappers
         {
             return new User
             {
-                Name = dto.Name,
+                Username = dto.Username,
                 Email = dto.Email,
                 PasswordHash = passwordHash,
                 CurrencyId = dto.CurrencyId

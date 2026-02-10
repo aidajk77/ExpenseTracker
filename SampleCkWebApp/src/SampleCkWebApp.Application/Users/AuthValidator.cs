@@ -16,11 +16,9 @@ namespace SampleCkWebApp.Application.Users
             var errors = new List<Error>();
 
             //  Validate Name (full name)
-            if (string.IsNullOrWhiteSpace(request.Name))
+            if (string.IsNullOrWhiteSpace(request.Username))
                 errors.Add(UserErrors.NameRequired);
-            else if (request.Name.Length > 100)
-                errors.Add(UserErrors.InvalidName);
-            else if (request.Name.Split(' ').Length < 2)
+            else if (request.Username.Length > 50)
                 errors.Add(UserErrors.InvalidName);
 
             //  Validate Email

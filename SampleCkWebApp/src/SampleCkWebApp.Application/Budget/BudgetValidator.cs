@@ -29,6 +29,7 @@ namespace SampleCkWebApp.Application.Budget
             //  Validate Year
             if (request.Year < 2000 || request.Year > 3000)
                 errors.Add(BudgetErrors.InvalidYear);
+        
 
             return errors.Count > 0 ? errors : Result.Success;
         }
@@ -37,9 +38,12 @@ namespace SampleCkWebApp.Application.Budget
         {
             var errors = new List<Error>();
 
-            //  Validate AmountLimit if provided
-            if (request.AmountLimit.HasValue && request.AmountLimit <= 0)
-                errors.Add(BudgetErrors.InvalidAmountLimit);
+            //  Validate CurrentAmount doesn't exceed AmountLimit
+            if (request.CurrentAmount.HasValue && request.AmountLimit.HasValue)
+            {
+                if (request.CurrentAmount > request.AmountLimit)
+                    errors.Add(BudgetErrors.CurrentAmountExceedsLimit);
+            }
 
             return errors.Count > 0 ? errors : Result.Success;
         }

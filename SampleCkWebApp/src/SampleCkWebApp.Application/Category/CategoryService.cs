@@ -66,6 +66,29 @@ public class CategoryService : ICategoryService
         //  Update only provided fields
         if (!string.IsNullOrEmpty(request.Name))
             category.Name = request.Name;
+        if(request.AllTimeAmount.HasValue)
+            category.AllTimeAmount = (decimal)request.AllTimeAmount;
+        
+
+        await _categoryRepository.UpdateAsync(category);
+        await _categoryRepository.SaveChangesAsync();
+
+        return category.ToDto();
+    }
+
+    public async Task<ErrorOr<CategoryDto>> UpdateCategoryAsync(
+        int id,
+        decimal amountChange,
+        CancellationToken cancellationToken = default)
+    {
+        var category = await _categoryRepository.GetByIdAsync(id);
+        if (category == null)
+            return CategoryErrors.NotFound;
+
+        var newAmount = category.AllTimeAmount + amountChange;
+
+
+        category.AllTimeAmount = newAmount;
 
         await _categoryRepository.UpdateAsync(category);
         await _categoryRepository.SaveChangesAsync();

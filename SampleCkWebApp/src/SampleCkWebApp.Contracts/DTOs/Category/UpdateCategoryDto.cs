@@ -9,5 +9,6 @@ namespace Contracts.DTOs.Category
     public class UpdateCategoryDto
     {
         public string? Name { get; set; }
+        public decimal? AllTimeAmount { get; set; }
     }
 }

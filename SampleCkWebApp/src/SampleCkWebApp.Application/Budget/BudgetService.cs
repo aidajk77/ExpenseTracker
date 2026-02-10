@@ -98,11 +98,38 @@ namespace SampleCkWebApp.Application.Budgets
             // Update only provided fields
             if (request.AmountLimit.HasValue)
                 budget.AmountLimit = request.AmountLimit.Value;
+            
+            if (request.CurrentAmount.HasValue)
+                budget.AmountLimit = request.CurrentAmount.Value;
+            
 
             await _budgetRepository.UpdateAsync(budget);
             await _budgetRepository.SaveChangesAsync();
 
             return budget.ToDto();
+        }
+
+        public async Task<ErrorOr<Success>> UpdateCurrentAmountAsync(
+            int budgetId,
+            decimal amountChange,
+            CancellationToken cancellationToken = default)
+        {
+             var budget = await _budgetRepository.GetByIdAsync(budgetId);
+            if (budget == null)
+            {
+                return BudgetErrors.NotFound;
+            }
+            
+            budget.CurrentAmount += amountChange;
+            
+            
+            if(Math.Abs(budget.AmountLimit)<Math.Abs(budget.CurrentAmount))
+                return BudgetErrors.CurrentAmountExceedsLimit;
+
+            await _budgetRepository.UpdateAsync(budget);
+            await _budgetRepository.SaveChangesAsync();
+
+            return Result.Success;
         }
     }
 }

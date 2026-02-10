@@ -10,6 +10,9 @@ public static class BudgetErrors
     public static Error NotFound =>
         Error.NotFound($"{nameof(BudgetErrors)}.{nameof(NotFound)}", "Budget not found.");
 
+    public static Error CurrentAmountExceedsLimit =>
+        Error.Validation("Budget.CurrentAmountExceedsLimit", "Current amount cannot exceed the budget limit");
+
     public static Error InvalidId =>
         Error.Validation($"{nameof(BudgetErrors)}.{nameof(InvalidId)}", "Invalid budget ID.");
 

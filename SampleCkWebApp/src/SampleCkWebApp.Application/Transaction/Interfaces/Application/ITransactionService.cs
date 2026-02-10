@@ -1,11 +1,33 @@
 using ErrorOr;
 using Contracts.DTOs.Transaction;
+using SampleCkWebApp.Contracts.DTOs.Common;
 
 namespace SampleCkWebApp.Application.Transaction.Interfaces.Application;
 
 public interface ITransactionService
 {
-    Task<ErrorOr<IEnumerable<TransactionDto>>> GetAllTransactionsAsync(CancellationToken cancellationToken = default);
+    Task<ErrorOr<PaginatedResponse<TransactionDto>>> GetPaginatedTransactionsAsync(
+        int page = 1,
+        int limit = 10,
+        CancellationToken cancellationToken = default);
+    Task<ErrorOr<PaginatedResponse<TransactionDto>>> GetUserTransactionsPaginatedAsync(
+        int userId,
+        int page = 1,
+        int limit = 10,
+        CancellationToken cancellationToken = default);
+    Task<ErrorOr<decimal>> GetUserMonthlyIncomeAsync(
+        int userId,
+        int month,
+        int year,
+        CancellationToken cancellationToken = default);
+    Task<ErrorOr<decimal>> GetUserMonthlyExpenseAsync(
+    int userId,
+    int month,
+    int year,
+    CancellationToken cancellationToken = default);
+    Task<ErrorOr<IEnumerable<TransactionDto>>> GetAllUserTransactionsAsync(
+        int userId,
+        CancellationToken cancellationToken = default);
     Task<ErrorOr<TransactionDto>> GetTransactionByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<ErrorOr<TransactionDto>> CreateTransactionAsync(CreateTransactionDto request, CancellationToken cancellationToken = default);
     Task<ErrorOr<TransactionDto>> UpdateTransactionAsync(int id, UpdateTransactionDto request, CancellationToken cancellationToken = default);
