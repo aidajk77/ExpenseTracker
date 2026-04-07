@@ -5,15 +5,17 @@ using Contracts.DTOs.User;
 using Domain.Entities;
 using api.Mappers;
 using Domain.Errors;
+using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Currencies.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Application.Users;
 
 public class UserService : IUserService
 {
-    private readonly IRepository<User> _userRepository;
-    private readonly IRepository<Currency> _currencyRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly ICurrencyRepository _currencyRepository;
 
-    public UserService(IRepository<User> userRepository, IRepository<Currency> currencyRepository)
+    public UserService(IUserRepository userRepository, ICurrencyRepository currencyRepository)
     {
         _userRepository = userRepository;
         _currencyRepository = currencyRepository;
@@ -41,17 +43,19 @@ public class UserService : IUserService
             return UserErrors.NotFound;
 
         // Apply updates only if provided
-        if (request.Username != null)
+        if (!string.IsNullOrEmpty(request.Username))
             user.Username = request.Username;
 
-        if (request.Email != null)
+        if (!string.IsNullOrEmpty(request.Email))
         {
-            // Check if new email already exists
-            var existingUsers = await _userRepository.GetAllAsync();
-            if (existingUsers.Any(u => u.Email == request.Email && u.Id != id))
+            var normalizedEmail = request.Email.ToLower().Trim();
+            
+            // ✅ OPTIMIZED - Single database query for email check
+            var emailExistsForOther = await _userRepository.EmailExistsForOtherUserAsync(normalizedEmail, id);
+            if (emailExistsForOther)
                 return UserErrors.DuplicateEmail;
 
-            user.Email = request.Email;
+            user.Email = normalizedEmail;
         }
 
         if (request.CurrencyId.HasValue)

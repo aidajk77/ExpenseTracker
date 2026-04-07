@@ -10,29 +10,40 @@ using Domain.Enums;
 using Domain.Errors;
 using SampleCkWebApp.Contracts.DTOs.Common;
 using SampleCkWebApp.Application.Savings.Interfaces.Application;
+using SampleCkWebApp.Application.Transaction.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Budget.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.PaymentMethod.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Savings.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Category.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Currencies.Interfaces.Application;
+using SampleCkWebApp.Application.Currencies.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Application.Transaction;
 
 public class TransactionService : ITransactionService
 {
-    private readonly IRepository<Domain.Entities.Transaction> _transactionRepository;
-    private readonly IRepository<Domain.Entities.Category> _categoryRepository;
-    private readonly IRepository<Domain.Entities.Budget> _budgetRepository;
-    private readonly IRepository<Domain.Entities.PaymentMethod> _paymentMethodRepository;
-    private readonly IRepository<User> _userRepository;
-    private readonly IRepository<Saving> _savingRepository;
+    private readonly ITransactionRepository _transactionRepository;
+    private readonly ICategoryRepository _categoryRepository;
+    private readonly IBudgetRepository _budgetRepository;
+    private readonly ICurrencyRepository _currencyRepository;
+    private readonly IPaymentMethodRepository _paymentMethodRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly ISavingRepository _savingRepository;
     private readonly ICategoryService _categoryService;  
     private readonly IBudgetService _budgetService;   
     private readonly ISavingService _savingService;   
     private readonly TransactionValidator _transactionValidator;
+    private const int USD_CURRENCY_ID = 4;
 
     public TransactionService(
-        IRepository<Domain.Entities.Transaction> transactionRepository,
-        IRepository<Domain.Entities.Category> categoryRepository,
-        IRepository<Domain.Entities.Budget> budgetRepository,
-        IRepository<Domain.Entities.PaymentMethod> paymentMethodRepository,
-        IRepository<User> userRepository,
-        IRepository<Saving> savingRepository,
+        ITransactionRepository transactionRepository,
+        ICategoryRepository categoryRepository,
+        IBudgetRepository budgetRepository,
+        IPaymentMethodRepository paymentMethodRepository,
+        ICurrencyRepository currencyRepository,
+        IUserRepository userRepository,
+        ISavingRepository savingRepository,
         ICategoryService categoryService,  
         IBudgetService budgetService,   
         ISavingService savingService,   
@@ -47,10 +58,11 @@ public class TransactionService : ITransactionService
         _categoryService = categoryService; 
         _budgetService = budgetService;    
         _savingService = savingService;  
+        _currencyRepository = currencyRepository;
         _transactionValidator = transactionValidator;
     }
 
-    public async Task<ErrorOr<PaginatedResponse<TransactionDto>>> GetPaginatedTransactionsAsync(
+    /*public async Task<ErrorOr<PaginatedResponse<TransactionDto>>> GetPaginatedTransactionsAsync(
         int page = 1,
         int limit = 10,
         CancellationToken cancellationToken = default)
@@ -87,10 +99,52 @@ public class TransactionService : ITransactionService
         return response;
     }
 
+*/
+    private async Task<decimal> ConvertFromUSDToUserCurrencyAsync(
+        decimal amountInUSD,
+        int userCurrencyId)
+    {
+        // If user currency is USD, no conversion needed
+        if (userCurrencyId == USD_CURRENCY_ID)
+            return amountInUSD;
+
+        // Get exchange rate from Currency table
+        var userCurrency = await _currencyRepository.GetByIdAsync(userCurrencyId);
+        
+        if (userCurrency == null || userCurrency.ExchangeRate <= 0)
+            return amountInUSD; // Fallback if currency not found
+
+        // ExchangeRate column stores: 1 USD = X currency
+        return amountInUSD * userCurrency.ExchangeRate;
+    }
+    private async Task<decimal> ConvertFromUserCurrencyToUSDAsync(
+        decimal amountInUserCurrency,
+        int userCurrencyId)
+    {
+        // If user currency is USD, no conversion needed
+        if (userCurrencyId == USD_CURRENCY_ID)
+            return amountInUserCurrency;
+
+        // Get exchange rate from Currency table
+        var userCurrency = await _currencyRepository.GetByIdAsync(userCurrencyId);
+        
+        if (userCurrency == null || userCurrency.ExchangeRate <= 0)
+            return amountInUserCurrency; // Fallback if currency not found
+
+        // ExchangeRate column stores: 1 USD = X currency
+        // Reverse: amount_in_user_currency / exchange_rate = amount_in_usd
+        return amountInUserCurrency / userCurrency.ExchangeRate;
+    }
+
     public async Task<ErrorOr<PaginatedResponse<TransactionDto>>> GetUserTransactionsPaginatedAsync(
         int userId,
         int page = 1,
         int limit = 10,
+        TransactionType? type = null,
+        int? categoryId = null,
+        int? savingId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
         CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByIdAsync(userId);
@@ -106,22 +160,33 @@ public class TransactionService : ITransactionService
         if (limit > 100)
             limit = 100;
         
-        var allTransactions = await _transactionRepository.GetAllAsync();
-        var userTransactions = allTransactions.Where(t => t.UserId == userId).ToList();
+        var (transactions, totalCount) = await _transactionRepository.GetUserTransactionsPagedAsync(
+        userId,
+        page,
+        limit,
+        type,
+        categoryId,
+        savingId,
+        startDate,
+        endDate);
 
-        var totalCount = userTransactions.Count();
         var totalPages = (int)Math.Ceiling(totalCount / (double)limit);
 
-        var transactions = userTransactions
-            .OrderByDescending(t => t.Date)
-            .Skip((page - 1) * limit)
-            .Take(limit)
-            .Select(t => t.ToDto())
-            .ToList();
+        var transactionDtos = new List<TransactionDto>();
+        foreach (var transaction in transactions)
+        {
+            var dto = transaction.ToDto();
+            
+            dto.Amount = await ConvertFromUSDToUserCurrencyAsync(
+                transaction.Amount,
+                user.CurrencyId);
+            
+            transactionDtos.Add(dto);
+        }
 
         var response = new PaginatedResponse<TransactionDto>
         {
-            Data = transactions,
+            Data = transactionDtos,
             Total = totalCount,
             Page = page,
             Limit = limit,
@@ -139,16 +204,31 @@ public class TransactionService : ITransactionService
         if (user == null)
             return TransactionErrors.InvalidUser;
 
-        var allTransactions = await _transactionRepository.GetAllAsync();
-        
-        var userTransactions = allTransactions
-            .Where(t => t.UserId == userId)
-            .OrderByDescending(t => t.Date)
-            .Select(t => t.ToDto())
-            .ToList();
+        var (userTransactions, _) = await _transactionRepository.GetUserTransactionsPagedAsync(
+        userId,
+        page: 1,
+        limit: 10000,  // Large limit to get all at once
+        type: null,
+        categoryId: null,
+        savingId: null,
+        startDate: null,
+        endDate: null);
 
-        return userTransactions;
+        var transactionDtos = new List<TransactionDto>();
+        foreach (var transaction in userTransactions.OrderByDescending(t => t.Date))
+        {
+            var dto = transaction.ToDto();
+            
+            dto.Amount = await ConvertFromUSDToUserCurrencyAsync(
+                transaction.Amount,
+                user.CurrencyId);
+            
+            transactionDtos.Add(dto);
+        }
+
+        return transactionDtos;
     }
+    
 
     public async Task<ErrorOr<decimal>> GetUserMonthlyIncomeAsync(
     int userId,
@@ -160,17 +240,40 @@ public class TransactionService : ITransactionService
         if (user == null)
             return TransactionErrors.InvalidUser;
 
-        var allTransactions = await _transactionRepository.GetAllAsync();
-        
-        var userIncome = allTransactions
-            .Where(t => 
-                t.UserId == userId && 
-                t.Type == TransactionType.INCOME &&
-                t.Date.Month == month &&
-                t.Date.Year == year)
-            .Sum(t => t.Amount);
+        var userIncomeInUSD = await _transactionRepository.GetUserMonthlyTotalAsync(
+            userId,
+            TransactionType.INCOME,
+            month,
+            year);
 
-        return userIncome;
+        var convertedIncome = await ConvertFromUSDToUserCurrencyAsync(
+            userIncomeInUSD,
+            user.CurrencyId);
+
+        return convertedIncome;
+    }
+
+    public async Task<ErrorOr<decimal>> GetUserIncomeByDateRangeAsync(
+    int userId,
+    DateTime startDate,
+    DateTime endDate,
+    CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            return TransactionErrors.InvalidUser;
+        
+        var userIncomeInUSD = await _transactionRepository.GetUserTotalByTypeAndDateRangeAsync(
+            userId,
+            TransactionType.INCOME,
+            startDate,
+            endDate);
+
+        var convertedIncome = await ConvertFromUSDToUserCurrencyAsync(
+            userIncomeInUSD,
+            user.CurrencyId);
+
+        return convertedIncome;
     }
 
     public async Task<ErrorOr<decimal>> GetUserMonthlyExpenseAsync(
@@ -183,18 +286,88 @@ public class TransactionService : ITransactionService
         if (user == null)
             return TransactionErrors.InvalidUser;
 
-        var allTransactions = await _transactionRepository.GetAllAsync();
-        
-        var userIncome = allTransactions
-            .Where(t => 
-                t.UserId == userId && 
-                t.Type == TransactionType.EXPENSE &&
-                t.Date.Month == month &&
-                t.Date.Year == year)
-            .Sum(t => t.Amount);
+        var userExpenseInUSD = await _transactionRepository.GetUserMonthlyTotalAsync(
+            userId,
+            TransactionType.EXPENSE,
+            month,
+            year);
 
-        return userIncome;
+        var convertedExpense = await ConvertFromUSDToUserCurrencyAsync(
+            userExpenseInUSD,
+            user.CurrencyId);
+
+        return convertedExpense;
     }
+
+    public async Task<ErrorOr<decimal>> GetUserExpensesByDateRangeAsync(
+    int userId,
+    DateTime startDate,
+    DateTime endDate,
+    CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            return TransactionErrors.InvalidUser;
+
+        var userExpensesInUSD = await _transactionRepository.GetUserTotalByTypeAndDateRangeAsync(
+            userId,
+            TransactionType.EXPENSE,
+            startDate,
+            endDate);
+
+        var convertedExpenses = await ConvertFromUSDToUserCurrencyAsync(
+            userExpensesInUSD,
+            user.CurrencyId);
+
+        return convertedExpenses;
+    }
+
+    public async Task<ErrorOr<decimal>> GetUserMonthlySavingsAsync(
+    int userId,
+    int month,
+    int year,
+    CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            return TransactionErrors.InvalidUser;
+
+        var userSavingsInUSD = await _transactionRepository.GetUserMonthlyTotalAsync(
+            userId,
+            TransactionType.SAVING,
+            month,
+            year);
+
+        var convertedSavings = await ConvertFromUSDToUserCurrencyAsync(
+            userSavingsInUSD,
+            user.CurrencyId);
+
+        return convertedSavings;
+    }
+
+    public async Task<ErrorOr<decimal>> GetUserSavingsByDateRangeAsync(
+    int userId,
+    DateTime startDate,
+    DateTime endDate,
+    CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+            return TransactionErrors.InvalidUser;
+
+        var userSavingsInUSD = await _transactionRepository.GetUserTotalByTypeAndDateRangeAsync(
+            userId,
+            TransactionType.SAVING,
+            startDate,
+            endDate);
+
+        var convertedSavings = await ConvertFromUSDToUserCurrencyAsync(
+            userSavingsInUSD,
+            user.CurrencyId);
+
+        return convertedSavings;
+    }
+
     public async Task<ErrorOr<TransactionDto>> GetTransactionByIdAsync(
         int id,
         CancellationToken cancellationToken = default)
@@ -209,154 +382,103 @@ public class TransactionService : ITransactionService
     public async Task<ErrorOr<TransactionDto>> CreateTransactionAsync(
     CreateTransactionDto request,
     CancellationToken cancellationToken = default)
-{   
-    var validationResult = _transactionValidator.ValidateCreateTransaction(request);
-    if (validationResult.IsError)
-        return validationResult.Errors;
+    {   
+        var validationResult = _transactionValidator.ValidateCreateTransaction(request);
+        if (validationResult.IsError)
+            return validationResult.Errors;
 
-    var user = await _userRepository.GetByIdAsync(request.UserId);
-    if (user == null)
-        return TransactionErrors.InvalidUser;
+        var (userExists, paymentMethodExists, categoryExists, savingExists, userInSaving) = 
+        await _transactionRepository.ValidateTransactionDependenciesAsync(
+            request.UserId,
+            request.PaymentMethodId,
+            request.CategoryId,
+            request.SavingId);
 
-    var category = await _categoryRepository.GetByIdAsync(request.CategoryId);
-    if (category == null)
-        return TransactionErrors.InvalidCategory;
+        if (!userExists)
+            return TransactionErrors.InvalidUser;
 
-    var paymentMethod = await _paymentMethodRepository.GetByIdAsync(request.PaymentMethodId);
-    if (paymentMethod == null)
-        return TransactionErrors.InvalidPaymentMethod;
-
-    Saving? saving = null;
-if (request.SavingId.HasValue)
-{
-    Console.WriteLine($"[SAVING_VALIDATION] SavingId provided: {request.SavingId.Value}");
-    
-    if (request.Type != TransactionType.SAVING)
-    {
-        Console.WriteLine($"[SAVING_VALIDATION] ❌ Invalid transaction type. Expected: {TransactionType.SAVING}, Got: {request.Type}");
-        return SavingErrors.InvalidTransactionType;
-    }
-    
-    Console.WriteLine($"[SAVING_VALIDATION] ✅ Transaction type is SAVING");
-
-    saving = await _savingRepository.GetByIdAsync(request.SavingId.Value);
-    if (saving == null)
-    {
-        Console.WriteLine($"[SAVING_VALIDATION] ❌ Saving not found with ID: {request.SavingId.Value}");
-        return SavingErrors.NotFound;
-    }
-    
-    Console.WriteLine($"[SAVING_VALIDATION] ✅ Saving found: ID={saving.Id}, Name={saving.Name}, CurrentAmount={saving.CurrentAmount}, TargetAmount={saving.TargetAmount}");
-    Console.WriteLine($"[SAVING_VALIDATION] Total users in saving: {saving.UserSavings.Count}");
-
-    var userInSaving = saving.UserSavings
-        .FirstOrDefault(us => us.UserId == request.UserId);
-
-    if (userInSaving == null)
-    {
-        Console.WriteLine($"[SAVING_VALIDATION] ❌ User {request.UserId} is not part of saving {saving.Id}");
-        Console.WriteLine($"[SAVING_VALIDATION] Users in saving: {string.Join(", ", saving.UserSavings.Select(us => us.UserId))}");
-        return SavingErrors.UserNotPartOfSaving;
-    }
-    
-    Console.WriteLine($"[SAVING_VALIDATION] ✅ User {request.UserId} is part of saving {saving.Id}");
-    Console.WriteLine($"[SAVING_VALIDATION] User contributed so far: {userInSaving.ContributedAmount}");
-}
-else
-{
-    Console.WriteLine($"[SAVING_VALIDATION] No SavingId provided - this will be a regular transaction");
-}
-
-    var transaction = request.ToModel();
-    await _transactionRepository.AddAsync(transaction);
-    await _transactionRepository.SaveChangesAsync();
-
-    Console.WriteLine($"[TRANSACTION] Created transaction: ID={transaction.Id}, UserID={request.UserId}, Amount={request.Amount}, Type={request.Type}, SavingID={request.SavingId}");
-
-    var amountChange = GetAmountChangeByType(request.Type, request.Amount);
-    Console.WriteLine($"[AMOUNT_CHANGE] Calculated amountChange: {amountChange}");
-
-    var categoryResult = await _categoryService.UpdateCategoryAsync(
-        request.CategoryId,
-        amountChange,
-        cancellationToken);
-
-    if (categoryResult.IsError)
-    {
-        Console.WriteLine($"[ERROR] Failed to update category {request.CategoryId}: {categoryResult.Errors.First().Description}");
-        return Error.Failure("Transaction.CategoryUpdateFailed", "Failed to update category");
-    }
-
-    Console.WriteLine($"[CATEGORY] Successfully updated category {request.CategoryId}");
-
-    // ✅ If SavingId is provided, update the saving instead of budget
-    if (request.SavingId.HasValue && saving != null)
-    {
-        Console.WriteLine($"[SAVING] Updating saving {saving.Id} with amount: {request.Amount}");
+        if (!paymentMethodExists)
+            return TransactionErrors.InvalidPaymentMethod;
         
-        // Update the saving's current amount directly
-        saving.CurrentAmount += request.Amount;
-        Console.WriteLine($"[SAVING] New saving amount: {saving.CurrentAmount}/{saving.TargetAmount}");
+        var user = await _userRepository.GetByIdAsync(request.UserId);
         
-        // Update the user's contributed amount in this saving
-        var userSaving = saving.UserSavings.FirstOrDefault(us => us.UserId == request.UserId);
-        if (userSaving != null)
+        var amountInUSD = await ConvertFromUserCurrencyToUSDAsync(
+            request.Amount,
+            user.CurrencyId);
+
+        var transactionRequest = new CreateTransactionDto
         {
-            userSaving.ContributedAmount += request.Amount;
-            Console.WriteLine($"[SAVING] User {request.UserId} contributed amount: {userSaving.ContributedAmount}");
+            UserId = request.UserId,
+            CategoryId = request.CategoryId,
+            PaymentMethodId = request.PaymentMethodId,
+            SavingId = request.SavingId,
+            Type = request.Type,
+            Amount = amountInUSD, 
+            Description = request.Description,
+            Date = request.Date
+        };
+
+        //  Handle INCOME/EXPENSE with CategoryId
+        if (request.Type == TransactionType.INCOME || request.Type == TransactionType.EXPENSE)
+        {
+            if (!request.CategoryId.HasValue || !categoryExists)
+                return TransactionErrors.InvalidCategory;
+
+            var transaction = transactionRequest.ToModel();
+
+
+            var categoryResult = await _categoryService.UpdateCategoryAsync(
+                request.CategoryId.Value,
+                request.Type,
+                amountInUSD,
+                cancellationToken);
+
+            if (categoryResult.IsError)
+            {
+                Console.WriteLine($"[ERROR] Failed to update category: {categoryResult.Errors.First().Description}");
+                return Error.Failure("Transaction.CategoryUpdateFailed", "Failed to update category");
+            }
+
+            await _transactionRepository.AddAsync(transaction);
+            await _transactionRepository.SaveChangesAsync();
+
+            return transaction.ToDto();
         }
 
-        // Save the changes to the saving
-        await _savingRepository.UpdateAsync(saving);
-        await _savingRepository.SaveChangesAsync();
-        
-        Console.WriteLine($"[SAVING] ✅ Successfully updated saving {saving.Id}");
-        return transaction.ToDto();
-    }
-
-    // ✅ If no SavingId, update budget as usual
-    var now = DateTime.UtcNow;
-    Console.WriteLine($"[BUDGET] Looking for budget: CategoryID={request.CategoryId}, Month={now.Month}, Year={now.Year}");
-
-    var allBudgets = await _budgetRepository.GetAllAsync();
-    Console.WriteLine($"[BUDGET] Total budgets in database: {allBudgets.Count()}");
-
-    var budget = allBudgets.FirstOrDefault(b =>
-        b.CategoryId == request.CategoryId &&
-        b.Month == now.Month &&
-        b.Year == now.Year);
-
-    if (budget == null)
-    {
-        Console.WriteLine($"[BUDGET] ⚠️  No budget found for CategoryID={request.CategoryId}, Month={now.Month}, Year={now.Year}");
-        Console.WriteLine($"[BUDGET] Available budgets:");
-        foreach (var b in allBudgets)
+        //  Handle SAVING with SavingId
+        else if (request.Type == TransactionType.SAVING)
         {
-            Console.WriteLine($"  - CategoryID={b.CategoryId}, Month={b.Month}, Year={b.Year}");
+            if (!request.SavingId.HasValue || !savingExists)
+                return SavingErrors.NotFound;
+
+            if (!userInSaving)
+                return SavingErrors.UserNotPartOfSaving;
+
+            var transaction = transactionRequest.ToModel();
+
+
+            var updateResult = await _savingService.AddSavingTransactionAsync(
+                request.SavingId.Value,
+                request.UserId,
+                amountInUSD,
+                cancellationToken);
+
+            if (updateResult.IsError)
+            {
+                Console.WriteLine($"[ERROR] Failed to update saving: {updateResult.Errors.First().Description}");
+                return Error.Failure("Transaction.SavingUpdateFailed", "Failed to update saving");
+            }
+
+            await _transactionRepository.AddAsync(transaction);
+            await _transactionRepository.SaveChangesAsync();
+
+            return transaction.ToDto();
         }
-        return transaction.ToDto();
+
+        return Error.Failure("Transaction.InvalidType", "Invalid transaction type");
     }
 
-    Console.WriteLine($"[BUDGET] Found budget: ID={budget.Id}, CurrentAmount={budget.CurrentAmount}, Limit={budget.AmountLimit}");
-    Console.WriteLine($"[BUDGET] Updating budget {budget.Id} with amountChange: {amountChange}");
-
-    var budgetResult = await _budgetService.UpdateCurrentAmountAsync(
-        budget.Id,
-        amountChange,
-        cancellationToken);
-
-    if (budgetResult.IsError)
-    {
-        Console.WriteLine($"[ERROR] Failed to update budget {budget.Id}: {budgetResult.Errors.First().Description}");
-        return Error.Failure("Transaction.BudgetUpdateFailed", "Failed to update budget");
-    }
-
-    Console.WriteLine($"[BUDGET] ✅ Successfully updated budget {budget.Id}");
-
-    return transaction.ToDto();    
-}
-
-    public async Task<ErrorOr<TransactionDto>> UpdateTransactionAsync(
+    /*public async Task<ErrorOr<TransactionDto>> UpdateTransactionAsync(
         int id,
         UpdateTransactionDto request,
         CancellationToken cancellationToken = default)
@@ -370,17 +492,27 @@ else
             return TransactionErrors.NotFound;
 
         var oldCategoryId = transaction.CategoryId;
+        var oldSavingId = transaction.SavingId;
         var oldAmount = transaction.Amount;
         var oldType = transaction.Type;
-        var oldAmountChange = GetAmountChangeByType(oldType, oldAmount);
+        var oldUserId = transaction.UserId;
 
-        if (request.CategoryId.HasValue)
+        //  Update transaction fields
+        if (request.CategoryId.HasValue && request.CategoryId > 0)
         {
             var category = await _categoryRepository.GetByIdAsync(request.CategoryId.Value);
             if (category == null)
                 return TransactionErrors.InvalidCategory;
-
             transaction.CategoryId = request.CategoryId.Value;
+        }
+
+        if (request.SavingId.HasValue && request.SavingId > 0)
+        {
+            var savingResult = await _savingService.GetSavingByIdAsync(request.SavingId.Value, cancellationToken);
+            if (savingResult.IsError)
+                return savingResult.Errors;
+            
+            transaction.SavingId = request.SavingId.Value;
         }
 
         if (request.PaymentMethodId.HasValue)
@@ -388,7 +520,6 @@ else
             var paymentMethod = await _paymentMethodRepository.GetByIdAsync(request.PaymentMethodId.Value);
             if (paymentMethod == null)
                 return TransactionErrors.InvalidPaymentMethod;
-
             transaction.PaymentMethodId = request.PaymentMethodId.Value;
         }
 
@@ -407,134 +538,137 @@ else
         await _transactionRepository.UpdateAsync(transaction);
         await _transactionRepository.SaveChangesAsync();
 
-        var newAmountChange = GetAmountChangeByType(transaction.Type, transaction.Amount);
-
-        if (oldCategoryId != transaction.CategoryId)
+        //  Handle updates based on OLD type - REVERT old values
+        if (oldType == TransactionType.INCOME || oldType == TransactionType.EXPENSE)
         {
-            var removeResult = await _categoryService.UpdateCategoryAsync(
-                oldCategoryId,
-                -oldAmountChange,
+            //  Revert old amount from old category
+            await _categoryService.UpdateCategoryAsync(
+                oldCategoryId.Value,
+                oldType,
+                -oldAmount,
                 cancellationToken);
 
-            if (removeResult.IsError)
-                return Error.Failure("Transaction.CategoryUpdateFailed", "Failed to update old category");
-
-            var addResult = await _categoryService.UpdateCategoryAsync(
-                transaction.CategoryId,
-                newAmountChange,
-                cancellationToken);
-
-            if (addResult.IsError)
-                return Error.Failure("Transaction.CategoryUpdateFailed", "Failed to update new category");
+            Console.WriteLine($"[UPDATE] Removed {oldType} from category {oldCategoryId}: -{oldAmount}");
         }
-        else if (oldAmountChange != newAmountChange)
+        else if (oldType == TransactionType.SAVING)
         {
-            var updateResult = await _categoryService.UpdateCategoryAsync(
-                transaction.CategoryId,
-                newAmountChange - oldAmountChange,
+            //  Remove old saving transaction through service
+            if (oldSavingId.HasValue)
+            {
+                var removeResult = await _savingService.RemoveSavingTransactionAsync(
+                    oldSavingId.Value,
+                    oldUserId,
+                    oldAmount,
+                    cancellationToken);
+
+                if (removeResult.IsError)
+                    Console.WriteLine($"[ERROR] Failed to remove old saving: {removeResult.Errors.First().Description}");
+
+                Console.WriteLine($"[UPDATE] Removed {oldAmount} from saving {oldSavingId}");
+            }
+        }
+
+        //  Handle updates based on NEW type - APPLY new values
+        if (transaction.Type == TransactionType.INCOME || transaction.Type == TransactionType.EXPENSE)
+        {
+            //  Add new amount to new category
+            var categoryResult = await _categoryService.UpdateCategoryAsync(
+                transaction.CategoryId.Value,
+                transaction.Type,
+                transaction.Amount,
                 cancellationToken);
 
-            if (updateResult.IsError)
+            if (categoryResult.IsError)
+            {
+                Console.WriteLine($"[ERROR] Failed to update category: {categoryResult.Errors.First().Description}");
                 return Error.Failure("Transaction.CategoryUpdateFailed", "Failed to update category");
-        }
-
-        var now = DateTime.UtcNow;
-        var allBudgets = await _budgetRepository.GetAllAsync();
-
-        if (oldCategoryId != transaction.CategoryId)
-        {
-            var oldBudget = allBudgets.FirstOrDefault(b =>
-                b.CategoryId == oldCategoryId &&
-                b.Month == now.Month &&
-                b.Year == now.Year);
-
-            if (oldBudget != null)
-            {
-                await _budgetService.UpdateCurrentAmountAsync(
-                    oldBudget.Id,
-                    -oldAmountChange,
-                    cancellationToken);
             }
 
-            var newBudget = allBudgets.FirstOrDefault(b =>
-                b.CategoryId == transaction.CategoryId &&
-                b.Month == now.Month &&
-                b.Year == now.Year);
-
-            if (newBudget != null)
-            {
-                await _budgetService.UpdateCurrentAmountAsync(
-                    newBudget.Id,
-                    newAmountChange,
-                    cancellationToken);
-            }
+            Console.WriteLine($"[UPDATE] Added {transaction.Type} to category {transaction.CategoryId}: +{transaction.Amount}");
         }
-        else if (oldAmountChange != newAmountChange)
+        else if (transaction.Type == TransactionType.SAVING)
         {
-            var budget = allBudgets.FirstOrDefault(b =>
-                b.CategoryId == transaction.CategoryId &&
-                b.Month == now.Month &&
-                b.Year == now.Year);
-
-            if (budget != null)
+            //  Add new saving transaction through service
+            if (transaction.SavingId.HasValue)
             {
-                await _budgetService.UpdateCurrentAmountAsync(
-                    budget.Id,
-                    newAmountChange - oldAmountChange,
+                var addResult = await _savingService.AddSavingTransactionAsync(
+                    transaction.SavingId.Value,
+                    transaction.UserId,
+                    transaction.Amount,
                     cancellationToken);
+
+                if (addResult.IsError)
+                {
+                    Console.WriteLine($"[ERROR] Failed to update saving: {addResult.Errors.First().Description}");
+                    return Error.Failure("Transaction.SavingUpdateFailed", "Failed to update saving");
+                }
+
+                Console.WriteLine($"[UPDATE] Added {transaction.Amount} to saving {transaction.SavingId}");
             }
         }
 
         return transaction.ToDto();
     }
 
+    */
+
     public async Task<ErrorOr<Success>> DeleteTransactionAsync(
-        int id,
-        CancellationToken cancellationToken = default)
+    int id,
+    CancellationToken cancellationToken = default)
     {
         var transaction = await _transactionRepository.GetByIdAsync(id);
         if (transaction == null)
             return TransactionErrors.NotFound;
 
         var categoryId = transaction.CategoryId;
-        var amount = transaction.Amount;
+        var savingId = transaction.SavingId;
+        var amountInUSD = transaction.Amount;
         var type = transaction.Type;
-        var amountChange = GetAmountChangeByType(type, amount);
+        var userId = transaction.UserId;
 
         await _transactionRepository.DeleteAsync(transaction);
         await _transactionRepository.SaveChangesAsync();
 
-        await _categoryService.UpdateCategoryAsync(
-            categoryId,
-            -amountChange,
-            cancellationToken);
-
-        var now = DateTime.UtcNow;
-        var allBudgets = await _budgetRepository.GetAllAsync();
-        var budget = allBudgets.FirstOrDefault(b =>
-            b.CategoryId == categoryId &&
-            b.Month == now.Month &&
-            b.Year == now.Year);
-
-        if (budget != null)
+        //  Handle deletion based on type
+        if (type == TransactionType.INCOME || type == TransactionType.EXPENSE)
         {
-            await _budgetService.UpdateCurrentAmountAsync(
-                budget.Id,
-                -amountChange,
+            //  Revert amount from category (CategoryService handles budgets)
+            var categoryResult = await _categoryService.UpdateCategoryAsync(
+                categoryId.Value,
+                type,
+                -amountInUSD,
                 cancellationToken);
+
+            if (categoryResult.IsError)
+            {
+                Console.WriteLine($"[ERROR] Failed to update category: {categoryResult.Errors.First().Description}");
+                return Error.Failure("Transaction.CategoryUpdateFailed", "Failed to update category");
+            }
+
+            Console.WriteLine($"[DELETE] Removed {type} from category {categoryId}: -{amountInUSD}");
+        }
+        else if (type == TransactionType.SAVING)
+        {
+            //  Remove saving transaction through service
+            if (savingId.HasValue)
+            {
+                var removeResult = await _savingService.RemoveSavingTransactionAsync(
+                    savingId.Value,
+                    userId,
+                    amountInUSD,
+                    cancellationToken);
+
+                if (removeResult.IsError)
+                {
+                    Console.WriteLine($"[ERROR] Failed to remove saving: {removeResult.Errors.First().Description}");
+                    return Error.Failure("Transaction.SavingUpdateFailed", "Failed to remove saving");
+                }
+
+                Console.WriteLine($"[DELETE] Removed {amountInUSD} from saving {savingId}");
+            }
         }
 
         return Result.Success;
     }
 
-    private decimal GetAmountChangeByType(TransactionType type, decimal amount)
-    {
-        return type switch
-        {
-            TransactionType.INCOME => amount,
-            TransactionType.EXPENSE => -amount,
-            TransactionType.SAVING => -amount,
-            _ => 0
-        };
-    }
 }

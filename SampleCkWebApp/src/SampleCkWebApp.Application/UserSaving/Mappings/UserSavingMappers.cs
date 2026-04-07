@@ -11,9 +11,12 @@ namespace api.Mappers
     {
         public static UserSavingDto ToDto(this UserSaving userSaving, decimal savingCurrentAmount = 0)
         {
+            var username = userSaving.User?.Username ?? "Unknown";
+
             return new UserSavingDto
             {
                 UserId = userSaving.UserId,
+                Username = username,
                 SavingId = userSaving.SavingId,
                 ContributedAmount = userSaving.ContributedAmount,
                 JoinedAt = userSaving.JoinedAt

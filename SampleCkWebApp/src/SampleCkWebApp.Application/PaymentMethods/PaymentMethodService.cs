@@ -6,16 +6,17 @@ using Domain.Entities;
 using api.Mappers;
 using SampleCkWebApp.Application.PaymentMethods;
 using Domain.Errors;
+using SampleCkWebApp.Application.PaymentMethod.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Application.PaymentMethod;
 
 public class PaymentMethodService : IPaymentMethodService
 {
-    private readonly IRepository<Domain.Entities.PaymentMethod> _paymentMethodRepository;
+    private readonly IPaymentMethodRepository _paymentMethodRepository;
     private readonly PaymentMethodValidator _paymentMethodValidator;
 
     public PaymentMethodService(
-        IRepository<Domain.Entities.PaymentMethod> paymentMethodRepository,
+        IPaymentMethodRepository paymentMethodRepository,
         PaymentMethodValidator paymentMethodValidator)
     {
         _paymentMethodRepository = paymentMethodRepository;
@@ -43,14 +44,13 @@ public class PaymentMethodService : IPaymentMethodService
         if (validationResult.IsError)
             return validationResult.Errors;
 
-        //  Check for duplicate name
-        var existingMethods = await _paymentMethodRepository.GetAllAsync();
-        if (existingMethods.Any(pm => pm.Name == request.Name))
-            return PaymentMethodErrors.DuplicateName;  //  Use domain error
+        var nameExists = await _paymentMethodRepository.PaymentMethodNameExistsAsync(request.Name);
+        if (nameExists)
+            return PaymentMethodErrors.DuplicateName;
 
         var paymentMethod = request.ToModel();
+        
         await _paymentMethodRepository.AddAsync(paymentMethod);
-
         await _paymentMethodRepository.SaveChangesAsync();
 
         return paymentMethod.ToDto();
@@ -68,11 +68,11 @@ public class PaymentMethodService : IPaymentMethodService
             return PaymentMethodErrors.NotFound;
         
         //  Check for duplicate name if name is being updated
-        if (!string.IsNullOrEmpty(request.Name) && request.Name != paymentMethod.Name)
+        if (!string.IsNullOrEmpty(request.Name) && request.Name.Trim() != paymentMethod.Name)
         {
-            var existingMethods = await _paymentMethodRepository.GetAllAsync();
-            if (existingMethods.Any(pm => pm.Name == request.Name))
-                return PaymentMethodErrors.DuplicateName;  //  Use domain error
+            var nameExists = await _paymentMethodRepository.PaymentMethodNameExistsAsync(request.Name);
+            if (nameExists)
+                return PaymentMethodErrors.DuplicateName;
         }
 
         if (!string.IsNullOrEmpty(request.Name))

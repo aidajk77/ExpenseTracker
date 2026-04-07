@@ -45,6 +45,9 @@ namespace SampleCkWebApp.Application.Budget
                     errors.Add(BudgetErrors.CurrentAmountExceedsLimit);
             }
 
+            if (request.AmountLimit.HasValue && request.AmountLimit <= 0)
+                errors.Add(BudgetErrors.InvalidAmountLimit);
+
             return errors.Count > 0 ? errors : Result.Success;
         }
     }

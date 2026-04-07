@@ -2,10 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using Domain.Entities;
 using SampleCkWebApp.Infrastructure.Data;
+using SampleCkWebApp.Application.PaymentMethod.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.PaymentMethods.Repositories;
 
-public class PaymentMethodRepository : IRepository<PaymentMethod>
+public class PaymentMethodRepository : IPaymentMethodRepository
 {
     private readonly ApplicationDbContext _context;
     private readonly DbSet<PaymentMethod> _paymentMethodSet;
@@ -16,6 +17,19 @@ public class PaymentMethodRepository : IRepository<PaymentMethod>
         _paymentMethodSet = context.Set<PaymentMethod>();
     }
 
+    public async Task<bool> PaymentMethodNameExistsAsync(string name)
+    {
+        return await _paymentMethodSet
+            .AsNoTracking()
+            .AnyAsync(pm => pm.Name == name.Trim());
+    }
+
+    public async Task<PaymentMethod?> GetPaymentMethodByNameAsync(string name)
+    {
+        return await _paymentMethodSet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(pm => pm.Name == name.Trim());
+    }
     public async Task<PaymentMethod?> GetByIdAsync(int id)
     {
         return await _paymentMethodSet.FirstOrDefaultAsync(p => p.Id == id);

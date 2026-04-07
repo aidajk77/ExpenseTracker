@@ -47,6 +47,19 @@ class UserService {
     }
   }
 
+  async changePassword(data: {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) {
+    try {
+      const response = await api.post('/users/change-password', data);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   async updateUser(id: number, data: any) {
     try {
       const response = await api.put(`/users/${id}`, data);

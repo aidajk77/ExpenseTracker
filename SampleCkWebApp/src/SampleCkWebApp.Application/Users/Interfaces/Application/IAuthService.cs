@@ -12,6 +12,7 @@ namespace SampleCkWebApp.Application.Users.Interfaces.Application
     {
         Task<ErrorOr<AuthResponseDto>> RegisterAsync(RegisterUserDto request, CancellationToken cancellationToken = default);
         Task<ErrorOr<AuthResponseDto>> LoginAsync(LoginUserDto request, CancellationToken cancellationToken = default);
+        Task<ErrorOr<Success>> ChangePasswordAsync(int userId, ChangePasswordDto request, CancellationToken cancellationToken = default);
         //Task<ErrorOr<AuthResponseDto>> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
     }
 }

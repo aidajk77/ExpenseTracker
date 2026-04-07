@@ -26,9 +26,21 @@ class TransactionService {
     }
   }
 
-  async getUserTransactionsPaginated(userId: number, page: number = 1, limit: number = 10) {
+  async getUserTransactionsPaginatedWithFilters(
+    userId: number,
+    page: number = 1,
+    limit: number = 10,
+    filters: {
+      type?: string;
+      categoryId?: string;
+      savingId?: string;
+      startDate?: string;
+      endDate?: string;
+    } = {}
+  ) {
     try {
-      const response = await api.get(`/transactions/user/${userId}`, { params: { page, limit } });
+      const params = { page, limit, ...filters };
+      const response = await api.get(`/transactions/user/${userId}/paginated`, { params });
       return response.data;
     } catch (error) {
       throw this.handleError(error);
@@ -64,10 +76,53 @@ class TransactionService {
     }
   }
 
+  async getUserIncomeByDateRange(userId: number, startDate: string, endDate: string) {
+    try {
+      const response = await api.get(`/transactions/user/${userId}/income/range`, { 
+        params: { startDate, endDate } 
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   async getUserMonthlyExpense(userId: number, month: number, year: number) {
     try {
       const response = await api.get(`/transactions/user/${userId}/expense/monthly`, { 
         params: { month, year } 
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+   async getUserExpensesByDateRange(userId: number, startDate: string, endDate: string) {
+    try {
+      const response = await api.get(`/transactions/user/${userId}/expense/range`, { 
+        params: { startDate, endDate } 
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+  async getUserMonthlySavings(userId: number, month: number, year: number) {
+    try {
+      const response = await api.get(`/transactions/user/${userId}/savings/monthly`, { 
+        params: { month, year } 
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async getUserSavingsByDateRange(userId: number, startDate: string, endDate: string) {
+    try {
+      const response = await api.get(`/transactions/user/${userId}/savings/range`, { 
+        params: { startDate, endDate } 
       });
       return response.data;
     } catch (error) {

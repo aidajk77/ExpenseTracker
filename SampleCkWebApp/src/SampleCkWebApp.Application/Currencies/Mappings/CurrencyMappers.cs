@@ -17,6 +17,7 @@ namespace api.Mappers
                 Code = currency.Code,
                 Name = currency.Name,
                 Symbol = currency.Symbol,
+                ExchangeRate = currency.ExchangeRate,
                 CreatedAt = currency.CreatedAt
             };
         }
@@ -27,7 +28,8 @@ namespace api.Mappers
             {
                 Code = dto.Code,
                 Name = dto.Name,
-                Symbol = dto.Symbol
+                Symbol = dto.Symbol,
+                ExchangeRate = dto.ExchangeRate
             };
         }
     }

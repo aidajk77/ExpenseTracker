@@ -9,7 +9,9 @@ using Domain.Errors;
 using ErrorOr;
 using SampleCkWebApp.Application.Common.Interfaces.Application;
 using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Currencies.Interfaces.Infrastructure;
 using SampleCkWebApp.Application.Users.Interfaces.Application;
+using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
 using SampleCkWebApp.Contracts.DTOs.User;
 
 namespace SampleCkWebApp.Application.Users
@@ -17,14 +19,14 @@ namespace SampleCkWebApp.Application.Users
     public class AuthService : IAuthService
     {
 
-        private readonly IRepository<User> _userRepository;
-        private readonly IRepository<Currency> _currencyRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly ICurrencyRepository _currencyRepository;
         private readonly IPasswordService _passwordService;
         private readonly AuthValidator _authValidator;
 
         public AuthService(
-            IRepository<User> userRepository,
-            IRepository<Currency> currencyRepository,
+            IUserRepository userRepository,
+            ICurrencyRepository currencyRepository,
             IPasswordService passwordService,
             AuthValidator authValidator)
         {
@@ -43,8 +45,8 @@ namespace SampleCkWebApp.Application.Users
                 return validationResult.Errors;
 
             // Check if email already exists
-            var users = await _userRepository.GetAllAsync();
-            if (users.Any(u => u.Email == request.Email))
+            var emailExists = await _userRepository.EmailExistsAsync(request.Email);
+            if (emailExists)
                 return UserErrors.DuplicateEmail;
 
             //  Validate currency exists
@@ -78,8 +80,7 @@ namespace SampleCkWebApp.Application.Users
                 return validationResult.Errors;
 
             // Find user by email
-            var users = await _userRepository.GetAllAsync();
-            var user = users.FirstOrDefault(u => u.Email == request.Email);
+            var user = await _userRepository.GetUserByEmailAsync(request.Email);
 
             // Check if user exists and password is correct
             if (user is null || !_passwordService.VerifyPassword(request.Password, user.PasswordHash))
@@ -93,6 +94,34 @@ namespace SampleCkWebApp.Application.Users
                 Token = token,
                 User = user.ToDto()
             };
+        }
+
+        public async Task<ErrorOr<Success>> ChangePasswordAsync(int userId, ChangePasswordDto request, CancellationToken cancellationToken = default)
+        {
+            // Validate input
+            var validationResult = _authValidator.ValidateChangePassword(request);
+            if (validationResult.IsError)
+                return validationResult.Errors;
+
+            // Get user by ID
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user is null)
+                return UserErrors.NotFound;
+
+            // Verify current password
+            if (!_passwordService.VerifyPassword(request.CurrentPassword, user.PasswordHash))
+                return UserErrors.InvalidCredentials;
+
+            // Hash new password
+            var newPasswordHash = _passwordService.HashPassword(request.NewPassword);
+
+            // Update password
+            user.PasswordHash = newPasswordHash;
+
+            await _userRepository.UpdateAsync(user);
+            await _userRepository.SaveChangesAsync();
+
+            return Result.Success;
         }
     }
 }

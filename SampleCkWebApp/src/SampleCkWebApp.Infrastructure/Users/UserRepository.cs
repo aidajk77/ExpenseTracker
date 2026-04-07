@@ -2,10 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using Domain.Entities;
 using SampleCkWebApp.Infrastructure.Data;
+using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.Users.Repositories;
 
-public class UserRepository : IRepository<User>
+public class UserRepository : IUserRepository
 {
     private readonly ApplicationDbContext _context;
     private readonly DbSet<User> _userSet;
@@ -16,6 +17,24 @@ public class UserRepository : IRepository<User>
         _userSet = context.Set<User>();
     }
 
+    public async Task<bool> EmailExistsAsync(string email)
+    {
+        return await _userSet
+            .AsNoTracking()
+            .AnyAsync(u => u.Email == email.ToLower());
+    }
+    public async Task<User?> GetUserByEmailAsync(string email)
+    {
+        return await _userSet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Email == email.ToLower());
+    }
+    public async Task<bool> EmailExistsForOtherUserAsync(string email, int userId)
+    {
+        return await _userSet
+            .AsNoTracking()
+            .AnyAsync(u => u.Email == email.ToLower() && u.Id != userId);
+    }
     public async Task<User?> GetByIdAsync(int id)
     {
         return await _userSet.FirstOrDefaultAsync(u => u.Id == id);

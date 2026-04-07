@@ -15,6 +15,7 @@ namespace api.Mappers
             {
                 Id = category.Id,
                 Name = category.Name,
+                UserId = category.UserId,
                 CreatedAt = category.CreatedAt
             };
         }
@@ -23,7 +24,8 @@ namespace api.Mappers
         {
             return new Category
             {
-                Name = dto.Name
+                Name = dto.Name,
+                UserId = dto.UserId
             };
         }
     }

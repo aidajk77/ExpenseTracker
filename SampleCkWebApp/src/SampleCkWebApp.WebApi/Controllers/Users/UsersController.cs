@@ -46,6 +46,8 @@ public class UsersController : ApiControllerBase
             Problem);  
     }
 
+
+    
     /// <summary>
     /// Retrieves the current authenticated user's information
     /// </summary>
@@ -152,6 +154,39 @@ public class UsersController : ApiControllerBase
         
         return result.Match(
             authResponse => Ok(authResponse),  //  Return 200 OK (not 201 Created)
+            Problem);
+    }
+
+    /// <summary>
+    /// Changes the password for the current authenticated user
+    /// </summary>
+    /// <param name="request">Change password request containing old and new password</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Success message</returns>
+    /// <response code="200">Password successfully changed</response>
+    /// <response code="400">Validation error (invalid passwords)</response>
+    /// <response code="401">Current password is incorrect</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpPost("change-password")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody, Required] ChangePasswordDto request,
+        CancellationToken cancellationToken)
+    {
+        // Get the user ID from the JWT token claims
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+            return Unauthorized(new { message = "Invalid or missing user ID in token" });
+
+        var result = await _authService.ChangePasswordAsync(userId, request, cancellationToken);
+        
+        return result.Match(
+            _ => Ok(new { message = "Password successfully changed" }),
             Problem);
     }
 

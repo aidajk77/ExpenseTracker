@@ -4,6 +4,7 @@ using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using Domain.Entities;
 using SampleCkWebApp.Infrastructure.Categories.Options;
 using SampleCkWebApp.Infrastructure.Categories.Repositories;
+using SampleCkWebApp.Application.Category.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.Categories;
 
@@ -14,7 +15,7 @@ public static class DependencyInjection
         var categoryOptions = configuration.GetCategoryOptions();
         services.TryAddCategoryOptions(categoryOptions);
         
-        services.AddScoped<IRepository<Category>, CategoryRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
         
         return services;
     }

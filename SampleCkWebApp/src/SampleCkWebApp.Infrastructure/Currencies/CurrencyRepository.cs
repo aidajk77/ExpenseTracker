@@ -2,10 +2,11 @@ using Domain.Entities;
 using SampleCkWebApp.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Currencies.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.Currencies.Repositories;
 
-public class CurrencyRepository : IRepository<Currency>
+public class CurrencyRepository : ICurrencyRepository
 {
     private readonly ApplicationDbContext _context;
     private readonly DbSet<Currency> _currencySet;
@@ -14,6 +15,20 @@ public class CurrencyRepository : IRepository<Currency>
     {
         _context = context;
         _currencySet = context.Set<Currency>();
+    }
+
+    public async Task<bool> CurrencyCodeExistsAsync(string code)
+    {
+        return await _currencySet
+            .AsNoTracking()
+            .AnyAsync(c => c.Code == code.ToUpper());
+    }
+
+    public async Task<Currency?> GetCurrencyByCodeAsync(string code)
+    {
+        return await _currencySet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Code == code.ToUpper());
     }
 
     public async Task<Currency?> GetByIdAsync(int id)

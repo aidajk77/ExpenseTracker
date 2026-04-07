@@ -63,6 +63,39 @@ namespace SampleCkWebApp.Application.Users
 
             return errors.Count > 0 ? errors : Result.Success;
         }
+
+        public ErrorOr<Success> ValidateChangePassword(ChangePasswordDto request)
+        {
+            var errors = new List<Error>();
+
+            // Validate current password
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+                errors.Add(Error.Validation("ChangePassword.CurrentPasswordEmpty", "Current password is required"));
+
+            // Validate new password
+            if (string.IsNullOrWhiteSpace(request.NewPassword))
+                errors.Add(Error.Validation("ChangePassword.NewPasswordEmpty", "New password is required"));
+
+            if (request.NewPassword?.Length < 6)
+                errors.Add(Error.Validation("ChangePassword.NewPasswordTooShort", "New password must be at least 6 characters"));
+
+            if (request.NewPassword?.Length > 100)
+                errors.Add(Error.Validation("ChangePassword.NewPasswordTooLong", "New password must not exceed 100 characters"));
+
+            // Validate confirm password
+            if (string.IsNullOrWhiteSpace(request.ConfirmPassword))
+                errors.Add(Error.Validation("ChangePassword.ConfirmPasswordEmpty", "Confirm password is required"));
+
+            // Check if passwords match
+            if (request.NewPassword != request.ConfirmPassword)
+                errors.Add(Error.Validation("ChangePassword.PasswordsMismatch", "New password and confirm password do not match"));
+
+            // Check if new password is different from current
+            if (request.CurrentPassword == request.NewPassword)
+                errors.Add(Error.Validation("ChangePassword.SamePassword", "New password must be different from current password"));
+
+            return errors.Count > 0 ? errors : Result.Success;
+        }
         
 
         private static bool IsValidEmail(string email)

@@ -6,6 +6,7 @@ using SampleCkWebApp.Application.Transaction.Interfaces.Application;
 using Contracts.DTOs.Transaction;
 using Microsoft.AspNetCore.Authorization;
 using SampleCkWebApp.Contracts.DTOs.Common;
+using Domain.Enums;
 
 namespace SampleCkWebApp.WebApi.Controllers.Transactions;
 
@@ -23,6 +24,8 @@ public class TransactionsController : ApiControllerBase
     {
         _transactionService = transactionService;
     }
+
+    /*
     [Authorize]
     [HttpGet]
     [ProducesResponseType(typeof(PaginatedResponse<TransactionDto>), StatusCodes.Status200OK)]
@@ -38,20 +41,27 @@ public class TransactionsController : ApiControllerBase
             errors => Problem(detail: errors.First().Description));
     }
 
+    */
+
     /// <summary>
-    /// Retrieves paginated transactions for a specific user
+    /// Retrieves paginated transactions for a specific user with optional filters
     /// </summary>
     /// <param name="userId">The unique identifier of the user</param>
     /// <param name="page">Page number (default: 1)</param>
     /// <param name="limit">Items per page (default: 10, max: 100)</param>
+    /// <param name="type">Filter by transaction type (0=Income, 1=Expense, 2=Saving)</param>
+    /// <param name="categoryId">Filter by category ID</param>
+    /// <param name="savingId">Filter by saving goal ID</param>
+    /// <param name="startDate">Filter by start date (yyyy-MM-dd)</param>
+    /// <param name="endDate">Filter by end date (yyyy-MM-dd)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Paginated list of user transactions</returns>
     /// <response code="200">Successfully retrieved user transactions</response>
-    /// <response code="400">Invalid pagination parameters</response>
+    /// <response code="400">Invalid pagination parameters or filters</response>
     /// <response code="404">User not found</response>
     /// <response code="500">Internal server error</response>
     [Authorize]
-    [HttpGet("user/{userId}")]
+    [HttpGet("user/{userId}/paginated")]
     [ProducesResponseType(typeof(PaginatedResponse<TransactionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -60,13 +70,29 @@ public class TransactionsController : ApiControllerBase
         [FromRoute, Required] int userId,
         [FromQuery] int page = 1,
         [FromQuery] int limit = 10,
+        [FromQuery] TransactionType? type = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] int? savingId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _transactionService.GetUserTransactionsPaginatedAsync(userId, page, limit, cancellationToken);
+        var result = await _transactionService.GetUserTransactionsPaginatedAsync(
+            userId, 
+            page, 
+            limit,
+            type,
+            categoryId,
+            savingId,
+            startDate,
+            endDate,
+            cancellationToken);
+            
         return result.Match(
             transactions => Ok(transactions),
             errors => Problem(detail: errors.First().Description));
     }
+
 
     /// <summary>
     /// Retrieves all transactions for a specific user without pagination
@@ -158,6 +184,40 @@ public class TransactionsController : ApiControllerBase
     }
 
     /// <summary>
+    /// Retrieves total income for a user within a date range
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="startDate">Start date (yyyy-MM-dd)</param>
+    /// <param name="endDate">End date (yyyy-MM-dd)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Total income within the date range</returns>
+    /// <response code="200">Successfully retrieved income</response>
+    /// <response code="400">Invalid date range</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/income/range")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserIncomeByDateRange(
+        [FromRoute, Required] int userId,
+        [FromQuery, Required] DateTime startDate,
+        [FromQuery, Required] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+            return BadRequest(new { error = "Start date must be before end date" });
+
+        var result = await _transactionService.GetUserIncomeByDateRangeAsync(userId, startDate, endDate, cancellationToken);
+
+        return result.Match(
+            income => Ok(new { income, startDate = startDate.Date, endDate = endDate.Date }),
+            errors => Problem(detail: errors.First().Description));
+    }
+
+    /// <summary>
     /// Retrieves the total monthly expenses for a specific user
     /// </summary>
     /// <param name="userId">The unique identifier of the user</param>
@@ -195,6 +255,114 @@ public class TransactionsController : ApiControllerBase
             expense => Ok(new { monthlyExpense = expense, month, year }),
             errors => Problem(detail: errors.First().Description));
     }
+
+    /// <summary>
+    /// Retrieves total expenses for a user within a date range
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="startDate">Start date (yyyy-MM-dd)</param>
+    /// <param name="endDate">End date (yyyy-MM-dd)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Total expenses within the date range</returns>
+    /// <response code="200">Successfully retrieved expenses</response>
+    /// <response code="400">Invalid date range</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/expense/range")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserExpensesByDateRange(
+        [FromRoute, Required] int userId,
+        [FromQuery, Required] DateTime startDate,
+        [FromQuery, Required] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+            return BadRequest(new { error = "Start date must be before end date" });
+
+        var result = await _transactionService.GetUserExpensesByDateRangeAsync(userId, startDate, endDate, cancellationToken);
+
+        return result.Match(
+            expenses => Ok(new { expenses, startDate = startDate.Date, endDate = endDate.Date }),
+            errors => Problem(detail: errors.First().Description));
+    }
+
+    /// <summary>
+    /// Retrieves the total monthly savings for a specific user
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="month">The month (1-12)</param>
+    /// <param name="year">The year</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The total savings for the specified month</returns>
+    /// <response code="200">Successfully retrieved monthly savings</response>
+    /// <response code="400">Invalid month or year</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/savings/monthly")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserMonthlySavings(
+        [FromRoute, Required] int userId,
+        [FromQuery, Required] int month,
+        [FromQuery, Required] int year,
+        CancellationToken cancellationToken = default)
+    {
+        //  Validate month
+        if (month < 1 || month > 12)
+            return BadRequest(new { error = "Month must be between 1 and 12" });
+
+        //  Validate year
+        if (year < 1900 || year > DateTime.UtcNow.Year + 10)
+            return BadRequest(new { error = "Year is invalid" });
+
+        var result = await _transactionService.GetUserMonthlySavingsAsync(userId, month, year, cancellationToken);
+
+        return result.Match(
+            savings => Ok(new { monthlySavings = savings, month, year }),
+            errors => Problem(detail: errors.First().Description));
+    }
+    
+    /// <summary>
+    /// Retrieves total savings for a user within a date range
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="startDate">Start date (yyyy-MM-dd)</param>
+    /// <param name="endDate">End date (yyyy-MM-dd)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Total savings within the date range</returns>
+    /// <response code="200">Successfully retrieved savings</response>
+    /// <response code="400">Invalid date range</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/savings/range")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserSavingsByDateRange(
+        [FromRoute, Required] int userId,
+        [FromQuery, Required] DateTime startDate,
+        [FromQuery, Required] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+            return BadRequest(new { error = "Start date must be before end date" });
+
+        var result = await _transactionService.GetUserSavingsByDateRangeAsync(userId, startDate, endDate, cancellationToken);
+
+        return result.Match(
+            savings => Ok(new { savings, startDate = startDate.Date, endDate = endDate.Date }),
+            errors => Problem(detail: errors.First().Description));
+    }
+
     
     /// <summary>
     /// Creates a new transaction in the system
@@ -223,6 +391,7 @@ public class TransactionsController : ApiControllerBase
             Problem);
     }
 
+/*
     /// <summary>
     /// Updates an existing transaction
     /// </summary>
@@ -252,6 +421,7 @@ public class TransactionsController : ApiControllerBase
             Problem);
     }
 
+*/
     /// <summary>
     /// Deletes a transaction from the system
     /// </summary>

@@ -10,6 +10,7 @@ namespace Contracts.DTOs.Currency
     {
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public decimal ExchangeRate { get; set; }
         public string Symbol { get; set; } = string.Empty;
     }
 }

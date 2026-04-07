@@ -4,6 +4,7 @@ using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using Domain.Entities;
 using SampleCkWebApp.Infrastructure.UserSavings.Options;
 using SampleCkWebApp.Infrastructure.UserSavings.Repositories;
+using SampleCkWebApp.Application.UserSaving.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.UserSavings;
 
@@ -14,7 +15,7 @@ public static class DependencyInjection
         var userSavingOptions = configuration.GetUserSavingOptions();
         services.TryAddUserSavingOptions(userSavingOptions);
         
-        services.AddScoped<IRepository<UserSaving>, UserSavingRepository>();
+        services.AddScoped<IUserSavingRepository, UserSavingRepository>();
         
         return services;
     }

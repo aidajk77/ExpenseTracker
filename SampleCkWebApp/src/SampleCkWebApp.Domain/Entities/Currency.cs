@@ -11,6 +11,7 @@ namespace Domain.Entities
         public required string Code { get; set; }
         public required string Name { get; set; }
         public required string Symbol { get; set; }
+        public required decimal ExchangeRate { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Relationships

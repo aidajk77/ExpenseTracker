@@ -16,6 +16,7 @@ namespace api.Mappers
             return new SavingDto
             {
                 Id = saving.Id,
+                Code = saving.Code,
                 Name = saving.Name,
                 Description = saving.Description,
                 TargetAmount = saving.TargetAmount,
@@ -26,6 +27,7 @@ namespace api.Mappers
                 Contributors = saving.UserSavings.Select(us => new UserSavingDto
                 {
                     UserId = us.UserId,
+                    Username = us.User.Username ?? "Unknown",
                     ContributedAmount = us.ContributedAmount,
                     JoinedAt = us.JoinedAt
                 }).ToList()
@@ -37,6 +39,7 @@ namespace api.Mappers
             return new Saving
             {
                 Name = dto.Name,
+                Code = GenerateTimeBasedCode(),
                 Description = dto.Description,
                 TargetAmount = dto.TargetAmount,
                 CurrentAmount = 0,
@@ -45,6 +48,16 @@ namespace api.Mappers
                 CreatedAt = DateTime.UtcNow,
                 UserSavings = new List<UserSaving>()
             };
+        }
+
+        private static string GenerateTimeBasedCode()
+        {
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var random = new Random();
+            int randomPart = random.Next(1000, 9999);
+            
+            string code = $"{timestamp:X4}{randomPart:X4}";
+            return code.ToUpper();
         }
     }
 }

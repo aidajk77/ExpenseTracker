@@ -63,7 +63,10 @@ namespace SampleCkWebApp.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("AllTimeAmount")
+                    b.Property<decimal>("AllTimeAmountEarned")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("AllTimeAmountSpent")
                         .HasColumnType("numeric");
 
                     b.Property<DateTime>("CreatedAt")
@@ -73,7 +76,12 @@ namespace SampleCkWebApp.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Categories");
                 });
@@ -92,6 +100,9 @@ namespace SampleCkWebApp.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("numeric");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -137,6 +148,10 @@ namespace SampleCkWebApp.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -161,7 +176,7 @@ namespace SampleCkWebApp.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Saving");
+                    b.ToTable("Savings");
                 });
 
             modelBuilder.Entity("Domain.Entities.Transaction", b =>
@@ -175,7 +190,7 @@ namespace SampleCkWebApp.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
-                    b.Property<int>("CategoryId")
+                    b.Property<int?>("CategoryId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
@@ -281,13 +296,22 @@ namespace SampleCkWebApp.Infrastructure.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("Domain.Entities.Category", b =>
+                {
+                    b.HasOne("Domain.Entities.User", "User")
+                        .WithMany("Categories")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Domain.Entities.Transaction", b =>
                 {
                     b.HasOne("Domain.Entities.Category", "Category")
                         .WithMany("Transactions")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("CategoryId");
 
                     b.HasOne("Domain.Entities.PaymentMethod", "PaymentMethod")
                         .WithMany("Transactions")
@@ -296,8 +320,9 @@ namespace SampleCkWebApp.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("Domain.Entities.Saving", "Saving")
-                        .WithMany("IncomeTransactions")
-                        .HasForeignKey("SavingId");
+                        .WithMany("Transactions")
+                        .HasForeignKey("SavingId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("Domain.Entities.User", "User")
                         .WithMany("Transactions")
@@ -363,13 +388,15 @@ namespace SampleCkWebApp.Infrastructure.Migrations
 
             modelBuilder.Entity("Domain.Entities.Saving", b =>
                 {
-                    b.Navigation("IncomeTransactions");
+                    b.Navigation("Transactions");
 
                     b.Navigation("UserSavings");
                 });
 
             modelBuilder.Entity("Domain.Entities.User", b =>
                 {
+                    b.Navigation("Categories");
+
                     b.Navigation("Transactions");
 
                     b.Navigation("UserSavings");

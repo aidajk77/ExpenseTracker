@@ -1,11 +1,10 @@
 import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
 
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 10000;
 
-// Create axios instance
+//  Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: API_TIMEOUT,
@@ -14,7 +13,10 @@ const api: AxiosInstance = axios.create({
   },
 });
 
-// Request Interceptor - Add auth token
+//  Flag to prevent duplicate interceptors
+let interceptorsInitialized = false;
+
+//  Request Interceptor - Add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
@@ -26,14 +28,18 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor - Handle errors
+//  Response Interceptor - Handle errors (only register once)
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userInfo');
-      window.location.href = '/login';
+      //  Only logout if not already logging out
+      if (!window.location.pathname.includes('/login')) {
+        console.log(' Unauthorized - Redirecting to login...');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userInfo');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

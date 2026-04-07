@@ -4,6 +4,7 @@ using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using Domain.Entities;
 using SampleCkWebApp.Infrastructure.Transactions.Options;
 using SampleCkWebApp.Infrastructure.Transactions.Repositories;
+using SampleCkWebApp.Application.Transaction.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.Transactions;
 
@@ -14,7 +15,7 @@ public static class DependencyInjection
         var transactionOptions = configuration.GetTransactionOptions();
         services.TryAddTransactionOptions(transactionOptions);
         
-        services.AddScoped<IRepository<Transaction>, TransactionRepository>();
+        services.AddScoped<ITransactionRepository, TransactionRepository>();
         
         return services;
     }

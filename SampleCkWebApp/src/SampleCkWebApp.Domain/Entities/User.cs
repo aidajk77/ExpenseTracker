@@ -22,5 +22,6 @@ namespace Domain.Entities
         // Navigation
         public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
         public ICollection<UserSaving> UserSavings { get; set; } = new List<UserSaving>();
+        public ICollection<Category> Categories { get; set; } = new List<Category>();
     }
 }

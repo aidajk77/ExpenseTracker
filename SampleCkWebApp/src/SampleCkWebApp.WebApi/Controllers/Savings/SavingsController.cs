@@ -5,6 +5,7 @@ using SampleCkWebApp.Application.Savings.Interfaces.Application;
 using SampleCkWebApp.WebApi.Controllers;
 using Contracts.DTOs.Saving;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace SampleCkWebApp.WebApi.Controllers.Savings;
 
@@ -44,6 +45,31 @@ public class SavingsController : ApiControllerBase
     }
     
     /// <summary>
+    /// Retrieves savings for a specific user
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of savings the user is a part of</returns>
+    /// <response code="200">Successfully retrieved user savings</response>
+    /// <response code="404">User not found or has no savings</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}")]
+    [ProducesResponseType(typeof(IEnumerable<SavingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserSavings(
+        [FromRoute, Required] int userId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _savingService.GetUserSavingsAsync(userId, cancellationToken);
+        
+        return result.Match(
+            savings => Ok(savings.ToList()),
+            Problem);
+    }
+    
+    /// <summary>
     /// Retrieves a specific saving by its ID
     /// </summary>
     /// <param name="id">The unique identifier of the saving</param>
@@ -61,10 +87,39 @@ public class SavingsController : ApiControllerBase
         [FromRoute, Required] int id, 
         CancellationToken cancellationToken)
     {
-        var result = await _savingService.GetSavingByIdAsync(id, cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                throw new UnauthorizedAccessException("User ID not found in token");
+
+        var result = await _savingService.GetSavingByIdAsync(id, userId, cancellationToken);
         
         return result.Match(
             saving => Ok(saving),
+            Problem);
+    }
+
+    /// <summary>
+    /// Retrieves non-completed (active) savings for a specific user
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of active/non-completed savings</returns>
+    /// <response code="200">Successfully retrieved non-completed savings</response>
+    /// <response code="404">User not found or has no non-completed savings</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/non-completed")]
+    [ProducesResponseType(typeof(IEnumerable<SavingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserNonCompletedSavings(
+        [FromRoute, Required] int userId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _savingService.GetUserNonCompletedSavingsAsync(userId, cancellationToken);
+        
+        return result.Match(
+            savings => Ok(savings.ToList()),
             Problem);
     }
     
@@ -88,7 +143,11 @@ public class SavingsController : ApiControllerBase
         [FromBody, Required] CreateSavingDto request, 
         CancellationToken cancellationToken)
     {
-        var result = await _savingService.CreateSavingAsync(request, cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                throw new UnauthorizedAccessException("User ID not found in token");
+
+        var result = await _savingService.CreateSavingAsync(request, userId, cancellationToken);
         
         return result.Match(
             saving => CreatedAtAction(nameof(GetSavingById), new { id = saving.Id }, saving),  //  Return created saving
@@ -117,7 +176,11 @@ public class SavingsController : ApiControllerBase
         [FromBody, Required] UpdateSavingDto request,
         CancellationToken cancellationToken)
     {
-        var result = await _savingService.UpdateSavingAsync(id, request, cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                throw new UnauthorizedAccessException("User ID not found in token");
+
+        var result = await _savingService.UpdateSavingAsync(id, request, userId, cancellationToken);
         
         return result.Match(
             saving => Ok(saving),
@@ -142,7 +205,11 @@ public class SavingsController : ApiControllerBase
         [FromRoute, Required] int id,
         CancellationToken cancellationToken)
     {
-        var result = await _savingService.DeleteSavingAsync(id, cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                throw new UnauthorizedAccessException("User ID not found in token");
+ 
+        var result = await _savingService.DeleteSavingAsync(id, userId, cancellationToken);
         
         return result.Match(
             _ => NoContent(),  //  Returns 204 No Content on success

@@ -8,6 +8,7 @@ namespace Contracts.DTOs.UserSaving
     public class UserSavingDto
     {
         public int UserId { get; set; }
+        public string Username { get; set; }
         public int SavingId { get; set; }
         public decimal ContributedAmount { get; set; }
         public DateTime JoinedAt { get; set; }

@@ -9,17 +9,18 @@ using Domain.Errors;
 using ErrorOr;
 using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using SampleCkWebApp.Application.Currencies.Interfaces.Application;
+using SampleCkWebApp.Application.Currencies.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Application.Currencies
 {
     public class CurrencyService : ICurrencyService
     {
 
-        private readonly IRepository<Currency> _currencyRepository;
+        private readonly ICurrencyRepository _currencyRepository;
         private readonly CurrencyValidator _currencyValidator;
 
         public CurrencyService(
-            IRepository<Currency> currencyRepository,
+            ICurrencyRepository currencyRepository,
             CurrencyValidator currencyValidator)
         {
             _currencyRepository = currencyRepository;
@@ -32,10 +33,9 @@ namespace SampleCkWebApp.Application.Currencies
             if (validationResult.IsError)
                 return validationResult.Errors;
             
-            //  Check for duplicate code
-            var existingCurrencies = await _currencyRepository.GetAllAsync();
-            if (existingCurrencies.Any(c => c.Code == request.Code))
-                return CurrencyErrors.DuplicateCode;  //  Use domain error
+            var codeExists = await _currencyRepository.CurrencyCodeExistsAsync(request.Code);
+            if (codeExists)
+                return CurrencyErrors.DuplicateCode;
 
             var currency = request.ToModel();
 
@@ -49,7 +49,7 @@ namespace SampleCkWebApp.Application.Currencies
         {
             var currency = await _currencyRepository.GetByIdAsync(id);
             if (currency == null)
-                throw new KeyNotFoundException($"Currency with ID {id} not found.");
+                return CurrencyErrors.NotFound;
 
             await _currencyRepository.DeleteAsync(currency);
             await _currencyRepository.SaveChangesAsync();
@@ -86,9 +86,9 @@ namespace SampleCkWebApp.Application.Currencies
             //  Check for duplicate code if code is being updated
             if (!string.IsNullOrEmpty(request.Code) && request.Code != currency.Code)
             {
-                var existingCurrencies = await _currencyRepository.GetAllAsync();
-                if (existingCurrencies.Any(c => c.Code == request.Code))
-                    return CurrencyErrors.DuplicateCode;  //  Use domain error
+                var codeExists = await _currencyRepository.CurrencyCodeExistsAsync(request.Code);
+                if (codeExists)
+                    return CurrencyErrors.DuplicateCode;
             }
 
             if (!string.IsNullOrEmpty(request.Code))

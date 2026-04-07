@@ -5,25 +5,32 @@ using Contracts.DTOs.UserSaving;
 using Domain.Entities;
 using api.Mappers;
 using Domain.Errors;
+using SampleCkWebApp.Application.UserSaving.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Savings.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Transaction.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Application.UserSaving;
 
 public class UserSavingService : IUserSavingService
 {
-    private readonly IRepository<Saving> _savingRepository;
-    private readonly IRepository<User> _userRepository;
-    private readonly IRepository<Domain.Entities.UserSaving> _userSavingRepository;
+    private readonly ISavingRepository _savingRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly ITransactionRepository _transactionRepository;
+    private readonly IUserSavingRepository _userSavingRepository;
     private readonly UserSavingValidator _userSavingValidator;
 
     public UserSavingService(
-        IRepository<Saving> savingRepository,
-        IRepository<User> userRepository,
-        IRepository<Domain.Entities.UserSaving> userSavingRepository,
+        ISavingRepository savingRepository,
+        IUserRepository userRepository,
+        IUserSavingRepository userSavingRepository,
+        ITransactionRepository transactionRepository,
         UserSavingValidator userSavingValidator)
     {
         _savingRepository = savingRepository;
         _userRepository = userRepository;
         _userSavingRepository = userSavingRepository;
+        _transactionRepository = transactionRepository;
         _userSavingValidator = userSavingValidator;
     }
 
@@ -37,15 +44,12 @@ public class UserSavingService : IUserSavingService
 
     public async Task<ErrorOr<UserSavingDto>> GetUserSavingByIdAsync(int userId, int savingId, CancellationToken cancellationToken = default)
     {
-        var userSaving = await _userSavingRepository.GetByIdAsync(userId);
+        var userSaving = await _userSavingRepository.GetUserSavingAsync(userId, savingId);
+        
         if (userSaving == null)
             return UserSavingErrors.NotFound;
 
-        if (userSaving.SavingId != savingId)
-            return UserSavingErrors.NotFound;
-
-        var dto = userSaving.ToDto(userSaving.Saving?.CurrentAmount ?? 0);
-        return dto;
+        return userSaving.ToDto(userSaving.Saving.CurrentAmount);
     }
 
     public async Task<ErrorOr<UserSavingDto>> CreateUserSavingAsync(CreateUserSavingDto request, CancellationToken cancellationToken = default)
@@ -67,16 +71,18 @@ public class UserSavingService : IUserSavingService
             return UserSavingErrors.UserNotFound;
 
         // Check if user already in saving
-        var existingUserSaving = saving.UserSavings
-            .FirstOrDefault(us => us.UserId == request.UserId);
+        var alreadyExists = await _userSavingRepository.UserExistsInSavingAsync(
+            request.UserId, 
+            request.SavingId);
 
-        if (existingUserSaving != null)
+        if (alreadyExists)
             return UserSavingErrors.AlreadyExists;
 
         // Create using mapper
         var userSaving = request.ToModel();
 
         await _userSavingRepository.AddAsync(userSaving);
+        await _userSavingRepository.SaveChangesAsync();
 
         return userSaving.ToDto();
     }
@@ -89,34 +95,51 @@ public class UserSavingService : IUserSavingService
             return validationResult.Errors;
 
         //  Find the user saving
-        var userSavings = await _userSavingRepository.GetAllAsync();
-        var userSaving = userSavings.FirstOrDefault(us => us.UserId == userId && us.SavingId == savingId);
+        var userSaving = await _userSavingRepository.GetUserSavingAsync(userId, savingId);
 
-        if (userSaving is null)  //  Use is null
-            return UserSavingErrors.NotFound;  //  Use domain error
+        if (userSaving is null) 
+            return UserSavingErrors.NotFound; 
 
         //  Update only provided fields
         if (request.ContributedAmount.HasValue)
             userSaving.ContributedAmount = request.ContributedAmount.Value;
 
         await _userSavingRepository.UpdateAsync(userSaving);
+        await _userSavingRepository.SaveChangesAsync();
 
-        var saving = await _savingRepository.GetByIdAsync(savingId);
-        return userSaving.ToDto(saving?.CurrentAmount ?? 0);
+        return userSaving.ToDto(userSaving.Saving.CurrentAmount);
     }
 
     public async Task<ErrorOr<Success>> DeleteUserSavingAsync(int userId, int savingId, CancellationToken cancellationToken = default)
     {
         //  Find the user saving
-        var userSavings = await _userSavingRepository.GetAllAsync();
-        var userSaving = userSavings.FirstOrDefault(us => us.UserId == userId && us.SavingId == savingId);
+        var userSaving = await _userSavingRepository.GetUserSavingAsync(userId, savingId);
 
         if (userSaving is null)  
             return UserSavingErrors.NotFound;  //  Use domain error
 
-        await _userSavingRepository.DeleteAsync(userSaving);
+       try
+        {
+            //  Step 1: Get all transactions related to this saving
+            var transactions = await _transactionRepository.GetBySavingIdAsync(savingId);
 
-        return Result.Success;
+            //  Step 2: Delete each transaction
+            foreach (var transaction in transactions)
+            {
+                await _transactionRepository.DeleteAsync(transaction);
+            }
+            await _transactionRepository.SaveChangesAsync();
+
+            //  Step 3: Delete the user saving
+            await _userSavingRepository.DeleteAsync(userSaving);
+            await _userSavingRepository.SaveChangesAsync();
+
+            return Result.Success;
+        }
+        catch (Exception ex)
+        {
+            return Error.Failure("UserSaving.DeleteFailed", ex.Message);
+        }
     }
 
 }

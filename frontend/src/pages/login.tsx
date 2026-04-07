@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import userService from '@/api/userService';
 import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/hooks/useAuth';
 
 function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,12 +32,11 @@ function Login() {
         email,
         password,
       });
+      console.log('Login response:', response);
 
-      // Store auth token
-      if (response.token) {
-        localStorage.setItem('authToken', response.token);
-        localStorage.setItem('userId', response.userId);
-
+      // Use context to store auth
+      if (response.token && response.user?.id) {
+        login(response.token, response.user.id.toString(), response.user.email);
       }
 
       // Redirect to dashboard
@@ -48,25 +49,24 @@ function Login() {
   };
 
   return (
-    <div className='min-h-screen flex items-center justify-center p-4 bg-gray-50'>
+    <div className='min-h-screen flex items-center justify-center p-4'>
       <div className='w-full max-w-md'>
         {/* Logo/Brand */}
         <div className='text-center mb-8'>
-          <h1 className='text-4xl font-bold text-gray-900 mb-2'>MoneyMate</h1>
-          <p className='text-gray-600'>Manage your money smarter</p>
+          <h1 className='text-4xl font-bold text-gray-900 dark:text-white mb-2'>MoneyMate</h1>
+          <p className='text-gray-600 dark:text-gray-400'>Manage your money smarter</p>
         </div>
 
-        {/* Login Card */}
-        <Card className='border-gray-200 shadow-lg'>
-          <CardHeader className='space-y-2'>
-            <CardTitle className='text-2xl text-gray-900'>Welcome Back</CardTitle>
-            <CardDescription className='text-gray-600'>Sign in to your account to continue</CardDescription>
+        <Card>
+          <CardHeader>
+            <CardTitle>Welcome Back</CardTitle>
+            <CardDescription>Sign in to your account to continue</CardDescription>
           </CardHeader>
           
           <CardContent className='space-y-6'>
             {/* Error Message */}
             {error && (
-              <div className='p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm'>
+              <div className='p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-200 text-sm font-medium'>
                 {error}
               </div>
             )}
@@ -74,7 +74,7 @@ function Login() {
             <form onSubmit={handleLogin} className='space-y-6'>
               {/* Email Input */}
               <div className='space-y-2'>
-                <Label htmlFor='email' className='text-gray-700'>Email Address</Label>
+                <Label htmlFor='email'>Email Address</Label>
                 <Input
                   id='email'
                   type='email'
@@ -82,15 +82,17 @@ function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  className='bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:border-gray-500 focus:ring-gray-500 disabled:bg-gray-100'
                 />
               </div>
 
               {/* Password Input */}
               <div className='space-y-2'>
                 <div className='flex justify-between items-center'>
-                  <Label htmlFor='password' className='text-gray-700'>Password</Label>
-                  <Link to='/forgot-password' className='text-xs text-gray-600 hover:text-gray-900'>
+                  <Label htmlFor='password'>Password</Label>
+                  <Link 
+                    to='/forgot-password' 
+                    className='text-xs text-muted-foreground hover:underline'
+                  >
                     Forgot password?
                   </Link>
                 </div>
@@ -101,16 +103,14 @@ function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  className='bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:border-gray-500 focus:ring-gray-500 disabled:bg-gray-100'
                 />
               </div>
-
 
               {/* Sign In Button */}
               <Button 
                 type='submit'
                 disabled={loading}
-                className='w-full bg-gray-900 hover:bg-gray-800 text-white py-2 rounded-lg font-semibold transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed'
+                className='w-full'
               >
                 {loading ? 'Signing In...' : 'Sign In'}
               </Button>
@@ -120,9 +120,12 @@ function Login() {
             <Separator />
 
             {/* Sign Up Link */}
-            <p className='text-center text-sm text-gray-600'>
+            <p className='text-center text-sm text-muted-foreground'>
               Don't have an account?{' '}
-              <Link to='/register' className='text-gray-900 hover:text-gray-700 font-semibold'>
+              <Link 
+                to='/register' 
+                className='text-foreground hover:underline font-semibold'
+              >
                 Sign up
               </Link>
             </p>

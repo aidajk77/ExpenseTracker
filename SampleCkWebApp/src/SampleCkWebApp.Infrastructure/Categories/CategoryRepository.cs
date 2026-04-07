@@ -2,10 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using Domain.Entities;
 using SampleCkWebApp.Infrastructure.Data;
+using SampleCkWebApp.Application.Category.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.Categories.Repositories;
 
-public class CategoryRepository : IRepository<Category>
+public class CategoryRepository : ICategoryRepository
 {
     private readonly ApplicationDbContext _context;
     private readonly DbSet<Category> _categorySet;
@@ -14,6 +15,15 @@ public class CategoryRepository : IRepository<Category>
     {
         _context = context;
         _categorySet = context.Set<Category>();
+    }
+
+    public async Task<IEnumerable<Domain.Entities.Category>> GetUserCategoriesAsync(int userId)
+    {
+        return await _categorySet
+            .AsNoTracking()
+            .Where(c => c.UserId == userId)
+            .OrderBy(c => c.Name)
+            .ToListAsync();
     }
 
     public async Task<Category?> GetByIdAsync(int id)

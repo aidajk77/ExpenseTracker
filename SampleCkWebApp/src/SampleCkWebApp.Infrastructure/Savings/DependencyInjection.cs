@@ -4,6 +4,7 @@ using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
 using Domain.Entities;
 using SampleCkWebApp.Infrastructure.Savings.Options;
 using SampleCkWebApp.Infrastructure.Savings.Repositories;
+using SampleCkWebApp.Application.Savings.Interfaces.Infrastructure;
 
 namespace SampleCkWebApp.Infrastructure.Savings;
 
@@ -14,7 +15,7 @@ public static class DependencyInjection
         var savingOptions = configuration.GetSavingOptions();
         services.TryAddSavingOptions(savingOptions);
         
-        services.AddScoped<IRepository<Saving>, SavingRepository>();
+        services.AddScoped<ISavingRepository, SavingRepository>();
         
         return services;
     }

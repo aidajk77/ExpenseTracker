@@ -10,6 +10,7 @@ namespace Domain.Entities
     {
         public int Id { get; set; }
         public required string Name { get; set; }           // "Holiday to Paris"
+        public required string Code { get; set; }
         public string? Description { get; set; }
         public decimal TargetAmount { get; set; }  // Goal: $5000
         public decimal CurrentAmount { get; set; } // Saved so far: $3000
@@ -19,6 +20,6 @@ namespace Domain.Entities
 
         // Navigation properties
         public ICollection<UserSaving> UserSavings { get; set; } = new List<UserSaving>();
-        public ICollection<Transaction> IncomeTransactions { get; set; } = new List<Transaction>();
+        public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     }
 }

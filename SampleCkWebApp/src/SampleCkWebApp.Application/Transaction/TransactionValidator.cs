@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Contracts.DTOs.Transaction;
+using Domain.Enums;
 using Domain.Errors;
 using ErrorOr;
 
@@ -38,9 +39,39 @@ namespace SampleCkWebApp.Application.Transaction
             if (request.Date == default || request.Date > DateTime.UtcNow)
                 errors.Add(TransactionErrors.InvalidDate);
 
-            //  Validate SavingId if provided (optional)
-            if (request.SavingId.HasValue && request.SavingId <= 0)
-                errors.Add(TransactionErrors.InvalidSavingId);
+            //  Validate Amount
+            if (request.Amount <= 0)
+                errors.Add(TransactionErrors.InvalidAmount);
+
+            //  TYPE-BASED VALIDATION
+            if (request.Type == TransactionType.INCOME || request.Type == TransactionType.EXPENSE)
+            {
+                //  INCOME/EXPENSE must have CategoryId
+                if (!request.CategoryId.HasValue || request.CategoryId <= 0)
+                    errors.Add(Error.Validation(
+                        "Transaction.CategoryRequired",
+                        $"{request.Type} transactions must have a valid CategoryId"));
+
+                //  INCOME/EXPENSE must NOT have SavingId
+                if (request.SavingId.HasValue && request.SavingId > 0)
+                    errors.Add(Error.Validation(
+                        "Transaction.InvalidSavingId",
+                        $"{request.Type} transactions cannot have a SavingId"));
+            }
+            else if (request.Type == TransactionType.SAVING)
+            {
+                //  SAVING must have SavingId
+                if (!request.SavingId.HasValue || request.SavingId <= 0)
+                    errors.Add(Error.Validation(
+                        "Transaction.SavingRequired",
+                        "Saving transactions must have a valid SavingId"));
+
+                //  SAVING must NOT have CategoryId
+                if (request.CategoryId.HasValue && request.CategoryId > 0)
+                    errors.Add(Error.Validation(
+                        "Transaction.InvalidCategoryId",
+                        "Saving transactions cannot have a CategoryId"));
+            }
 
             return errors.Count > 0 ? errors : Result.Success;
         }
@@ -76,6 +107,41 @@ namespace SampleCkWebApp.Application.Transaction
             //  Validate Date if provided
             if (request.Date.HasValue && (request.Date == default || request.Date > DateTime.UtcNow))
                 errors.Add(TransactionErrors.InvalidDate);
+            
+            // ✅ TYPE-BASED VALIDATION (only if type is being updated)
+            if (request.Type.HasValue)
+            {
+                var newType = request.Type.Value;
+
+                if (newType == TransactionType.INCOME || newType == TransactionType.EXPENSE)
+                {
+                    // ✅ INCOME/EXPENSE must have CategoryId
+                    if (request.CategoryId.HasValue && request.CategoryId <= 0)
+                        errors.Add(Error.Validation(
+                            "Transaction.InvalidCategoryId",
+                            $"{newType} transactions must have a valid CategoryId"));
+
+                    // ✅ INCOME/EXPENSE must NOT have SavingId
+                    if (request.SavingId.HasValue && request.SavingId > 0)
+                        errors.Add(Error.Validation(
+                            "Transaction.InvalidSavingId",
+                            $"{newType} transactions cannot have a SavingId"));
+                }
+                else if (newType == TransactionType.SAVING)
+                {
+                    // ✅ SAVING must have SavingId
+                    if (!request.SavingId.HasValue || request.SavingId <= 0)
+                        errors.Add(Error.Validation(
+                            "Transaction.SavingRequired",
+                            "Saving transactions must have a valid SavingId"));
+
+                    // ✅ SAVING must NOT have CategoryId
+                    if (request.CategoryId.HasValue && request.CategoryId > 0)
+                        errors.Add(Error.Validation(
+                            "Transaction.InvalidCategoryId",
+                            "Saving transactions cannot have a CategoryId"));
+                }
+            }
 
             return errors.Count > 0 ? errors : Result.Success;
         }

@@ -5,6 +5,8 @@ using SampleCkWebApp.WebApi.Controllers;
 using SampleCkWebApp.Application.Budgets.Interfaces.Application;
 using Contracts.DTOs.Budget;
 using Microsoft.AspNetCore.Authorization;
+using SampleCkWebApp.Contracts.DTOs.Budget;
+using System.Security.Claims;
 
 namespace SampleCkWebApp.WebApi.Controllers.Budgets;
 
@@ -61,12 +63,124 @@ public class BudgetsController : ApiControllerBase
         [FromRoute, Required] int id, 
         CancellationToken cancellationToken)
     {
-        var result = await _budgetService.GetBudgetByIdAsync(id, cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                throw new UnauthorizedAccessException("User ID not found in token");
+        var result = await _budgetService.GetBudgetByIdAsync(id, userId, cancellationToken);
         
         return result.Match(
             budget => Ok(budget),
             Problem);
     }
+
+     /// <summary>
+    /// Retrieves all budgets for a specific user (through their categories)
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of budgets for the user's categories</returns>
+    /// <response code="200">Successfully retrieved user budgets</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}")]
+    [ProducesResponseType(typeof(IEnumerable<BudgetDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserBudgets(
+        [FromRoute, Required] int userId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _budgetService.GetUserBudgetsAsync(userId, cancellationToken);
+        
+        return result.Match(
+            budgets => Ok(budgets.ToList()),
+            Problem);
+    }
+    
+    /// <summary>
+    /// Retrieves all budgets for a specific user for a specific month
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="month">The month (1-12)</param>
+    /// <param name="year">The year</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of budgets for the user's categories in the specified month</returns>
+    /// <response code="200">Successfully retrieved user budgets</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/month/{month}/year/{year}")]
+    [ProducesResponseType(typeof(IEnumerable<BudgetDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserBudgetsForMonth(
+        [FromRoute, Required] int userId,
+        [FromRoute, Required] int month,
+        [FromRoute, Required] int year,
+        CancellationToken cancellationToken)
+    {
+        var result = await _budgetService.GetUserBudgetsForMonthAsync(userId, month, year, cancellationToken);
+        
+        return result.Match(
+            budgets => Ok(budgets.ToList()),
+            Problem);
+    }
+
+    /// <summary>
+    /// Get budget summary for a user (total budgeted, spent, remaining, percentage)
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Budget summary with totals and percentages</returns>
+    /// <response code="200">Successfully retrieved budget summary</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/summary")]
+    [ProducesResponseType(typeof(BudgetSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserBudgetSummary(
+        [FromRoute, Required] int userId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _budgetService.GetUserBudgetSummaryAsync(userId, cancellationToken);
+        
+        return result.Match(
+            summary => Ok(summary),
+            Problem);
+    }
+
+    /// <summary>
+    /// Get budget summary for a user for a specific month
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <param name="month">The month (1-12)</param>
+    /// <param name="year">The year</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Budget summary for the specific month</returns>
+    /// <response code="200">Successfully retrieved budget summary</response>
+    /// <response code="404">User not found</response>
+    /// <response code="500">Internal server error</response>
+    [Authorize]
+    [HttpGet("user/{userId}/month/{month}/year/{year}/summary")]
+    [ProducesResponseType(typeof(BudgetSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserBudgetSummaryForMonth(
+        [FromRoute, Required] int userId,
+        [FromRoute, Required] int month,
+        [FromRoute, Required] int year,
+        CancellationToken cancellationToken)
+    {
+        var result = await _budgetService.GetUserBudgetSummaryForMonthAsync(userId, month, year, cancellationToken);
+        
+        return result.Match(
+            summary => Ok(summary),
+            Problem);
+    }
+
     
     /// <summary>
     /// Creates a new budget in the system
@@ -90,7 +204,10 @@ public class BudgetsController : ApiControllerBase
         [FromBody, Required] CreateBudgetDto request, 
         CancellationToken cancellationToken)
     {
-        var result = await _budgetService.CreateBudgetAsync(request, cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                throw new UnauthorizedAccessException("User ID not found in token");
+        var result = await _budgetService.CreateBudgetAsync(request,userId, cancellationToken);
         
         return result.Match(
             budget => CreatedAtAction(nameof(GetBudgetById), new { id = budget.Id }, budget),  //  Return created budget
@@ -121,7 +238,10 @@ public class BudgetsController : ApiControllerBase
         [FromBody, Required] UpdateBudgetDto request,
         CancellationToken cancellationToken)
     {
-        var result = await _budgetService.UpdateBudgetAsync(id, request, cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                throw new UnauthorizedAccessException("User ID not found in token");
+        var result = await _budgetService.UpdateBudgetAsync(id, userId, request, cancellationToken);
         
         return result.Match(
             budget => Ok(budget),

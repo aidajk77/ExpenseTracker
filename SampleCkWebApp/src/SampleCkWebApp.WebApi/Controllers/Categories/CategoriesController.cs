@@ -5,6 +5,7 @@ using SampleCkWebApp.WebApi.Controllers;
 using SampleCkWebApp.Application.Category.Interfaces.Application;
 using Contracts.DTOs.Category;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace SampleCkWebApp.WebApi.Controllers.Categories;
 
@@ -24,22 +25,28 @@ public class CategoriesController : ApiControllerBase
     }
     
     /// <summary>
-    /// Retrieves all categories from the system
+    /// Retrieves all categories for the authenticated user
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of all categories</returns>
+    /// <returns>List of user's categories</returns>
     /// <response code="200">Successfully retrieved categories</response>
+    /// <response code="401">User not authenticated</response>
     /// <response code="500">Internal server error</response>
     [Authorize]
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<CategoryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetCategories(CancellationToken cancellationToken)
     {
-        var result = await _categoryService.GetAllCategoriesAsync(cancellationToken);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+            return Unauthorized("User ID not found in token");
+
+        var result = await _categoryService.GetAllUserCategoriesAsync(userId, cancellationToken);
         
         return result.Match(
-            categories => Ok(categories.ToList()),  //  Convert to response
+            categories => Ok(categories.ToList()),  
             Problem);  
     }
     

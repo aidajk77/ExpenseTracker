@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SampleCkWebApp.Application.Common.Interfaces.Infrastructure;
+using SampleCkWebApp.Application.Users.Interfaces.Infrastructure;
 using SampleCkWebApp.Infrastructure.Users.Options;
 using SampleCkWebApp.Infrastructure.Users.Repositories;
 
@@ -14,7 +15,7 @@ public static class DependencyInjection
     {
         services.TryAddUserOptions(configuration.GetUserOptions());
         
-        services.TryAddScoped<IRepository<User>, UserRepository>();
+        services.TryAddScoped<IUserRepository, UserRepository>();
         
         return services;
     }
