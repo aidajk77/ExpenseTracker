@@ -17,6 +17,18 @@ public class TransactionRepository : ITransactionRepository
         _transactionSet = context.Set<Transaction>();
     }
 
+    private DateTime EnsureUtcDateTime(DateTime dateTime)
+    {
+        if (dateTime.Kind == DateTimeKind.Unspecified)
+        {
+            return DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+        }
+        
+        return dateTime.Kind == DateTimeKind.Local 
+            ? dateTime.ToUniversalTime() 
+            : dateTime;
+    }
+
     public async Task<(IEnumerable<Transaction> transactions, int totalCount)> GetUserTransactionsPagedAsync(
         int userId,
         int page,
@@ -41,10 +53,16 @@ public class TransactionRepository : ITransactionRepository
             query = query.Where(t => t.SavingId == savingId.Value);
 
         if (startDate.HasValue)
-            query = query.Where(t => t.Date.Date >= startDate.Value.Date);
-
+        {
+            var utcStartDate = EnsureUtcDateTime(startDate.Value);
+            query = query.Where(t => t.Date >= utcStartDate);
+        }
         if (endDate.HasValue)
-            query = query.Where(t => t.Date.Date <= endDate.Value.Date);
+        {
+            var utcEndDate = EnsureUtcDateTime(endDate.Value);
+            // Include entire day by checking < next day
+            query = query.Where(t => t.Date < utcEndDate.AddDays(1));
+        }
 
         var totalCount = await query.CountAsync();
 
@@ -81,7 +99,7 @@ public class TransactionRepository : ITransactionRepository
     {
 
         var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var endDate = startDate.AddMonths(1).AddDays(-1);
+        var endDate = startDate.AddMonths(1);
 
         return await _transactionSet
             .AsNoTracking()
@@ -89,7 +107,7 @@ public class TransactionRepository : ITransactionRepository
                 t.UserId == userId &&
                 t.Type == type &&
                 t.Date >= startDate &&
-                t.Date < startDate.AddMonths(1))
+                t.Date < endDate) 
             .SumAsync(t => t.Amount);
     }
 
@@ -99,27 +117,23 @@ public class TransactionRepository : ITransactionRepository
         DateTime startDate,
         DateTime endDate)
     {
-        startDate = startDate.Kind == DateTimeKind.Unspecified 
-            ? DateTime.SpecifyKind(startDate, DateTimeKind.Utc) 
-            : startDate.ToUniversalTime();
+        startDate = EnsureUtcDateTime(startDate);
+        endDate = EnsureUtcDateTime(endDate);
 
-        endDate = endDate.Kind == DateTimeKind.Unspecified 
-            ? DateTime.SpecifyKind(endDate, DateTimeKind.Utc) 
-            : endDate.ToUniversalTime();
-
-            
         return await _transactionSet
             .AsNoTracking()
             .Where(t =>
                 t.UserId == userId &&
                 t.Type == type &&
-                t.Date.Date >= startDate.Date &&
-                t.Date.Date <= endDate.Date)
+                t.Date >= startDate &&
+                t.Date < endDate.AddDays(1))
             .SumAsync(t => t.Amount);
     }
+
     public async Task<IEnumerable<Transaction>> GetBySavingIdAsync(int savingId)
     {
         return await _transactionSet
+            .AsNoTracking()
             .Where(t => t.SavingId == savingId)
             .ToListAsync();
     }
@@ -127,31 +141,69 @@ public class TransactionRepository : ITransactionRepository
     public async Task<IEnumerable<Transaction>> GetByCategoryIdAsync(int categoryId)
     {
         return await _transactionSet
+            .AsNoTracking()
             .Where(t => t.CategoryId == categoryId)
             .ToListAsync();
     }
+
     public async Task<Transaction?> GetByIdAsync(int id)
     {
-        return await _transactionSet.FirstOrDefaultAsync(t => t.Id == id);
+        return await _transactionSet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id);
     }
 
     public async Task<IEnumerable<Transaction>> GetAllAsync()
     {
-        return await _transactionSet.ToListAsync();
+        return await _transactionSet
+            .AsNoTracking()
+            .ToListAsync();
     }
 
     public async Task AddAsync(Transaction entity)
     {
+        //  Ensure DateTime is UTC before saving
+        if (entity.Date.Kind == DateTimeKind.Unspecified)
+        {
+            entity.Date = DateTime.SpecifyKind(entity.Date, DateTimeKind.Utc);
+        }
+        if (entity.CreatedAt.Kind == DateTimeKind.Unspecified)
+        {
+            entity.CreatedAt = DateTime.SpecifyKind(entity.CreatedAt, DateTimeKind.Utc);
+        }
+        
         await _transactionSet.AddAsync(entity);
     }
 
     public async Task AddRangeAsync(IEnumerable<Transaction> entities)
     {
+        foreach (var entity in entities)
+        {
+            if (entity.Date.Kind == DateTimeKind.Unspecified)
+            {
+                entity.Date = DateTime.SpecifyKind(entity.Date, DateTimeKind.Utc);
+            }
+            if (entity.CreatedAt.Kind == DateTimeKind.Unspecified)
+            {
+                entity.CreatedAt = DateTime.SpecifyKind(entity.CreatedAt, DateTimeKind.Utc);
+            }
+        }
+        
         await _transactionSet.AddRangeAsync(entities);
     }
 
     public async Task UpdateAsync(Transaction entity)
     {
+        //  Ensure DateTime is UTC before updating
+        if (entity.Date.Kind == DateTimeKind.Unspecified)
+        {
+            entity.Date = DateTime.SpecifyKind(entity.Date, DateTimeKind.Utc);
+        }
+        if (entity.CreatedAt.Kind == DateTimeKind.Unspecified)
+        {
+            entity.CreatedAt = DateTime.SpecifyKind(entity.CreatedAt, DateTimeKind.Utc);
+        }
+        
         _transactionSet.Update(entity);
     }
 
