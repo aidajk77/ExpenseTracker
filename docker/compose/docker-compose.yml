@@ -1,6 +1,32 @@
 ﻿services:
   sampleckwebapp.webapi:
+    build:
+      context: ../../
+      dockerfile: docker/build/SampleCkWebApp.Dockerfile
     image: sampleckwebapp:build
+    container_name: expensetracker-backend
     restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - Database__ConnectionString=Host=database;Port=5432;Database=expensetracker;Username=postgres;Password=1234
+    depends_on:
+      - database
+      
+  database:
+    image: postgres:latest       
+    container_name: expensetracker
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=expensetracker
+      - POSTGRES_USER=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql
 
-
+volumes:
+  postgres_data:

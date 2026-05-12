@@ -1,7 +1,9 @@
 ﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SampleCkWebApp.Application;
+using SampleCkWebApp.Infrastructure.Data;
 using SampleCkWebApp.WebApi;
 using Serilog;
 
@@ -174,6 +176,7 @@ var app = builder.Build();
     
     app.MapControllers();
 }
+
 
 // Start the application
 app.Start();
