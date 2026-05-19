@@ -10,9 +10,9 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCP_REGION: us-central1
-  SERVICE_NAME: expensetracker-backend
-  IMAGE_NAME: expensetracker-backend
+  GCP_REGION: europe-west1
+  SERVICE_NAME: expenseTrackerBackend
+  IMAGE_NAME: expenseTrackerBackend
 
 jobs:
   build-and-deploy:
