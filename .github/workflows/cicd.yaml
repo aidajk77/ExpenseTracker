@@ -45,10 +45,12 @@ jobs:
             -t europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
 
-      - name: Push Docker image to Container Registry
+      - name: Push using gcloud
         run: |
-          docker push europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest
-          docker push europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          gcloud builds submit \
+            --region europe-west1 \
+            --tag europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest \
+            --tag europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |
