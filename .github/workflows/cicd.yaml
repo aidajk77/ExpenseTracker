@@ -49,6 +49,7 @@ jobs:
         run: |
           gcloud builds submit \
             --region europe-west1 \
+            --dockerfile=docker/build/SampleCkWebApp.Dockerfile \
             --tag europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest \
             --tag europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
