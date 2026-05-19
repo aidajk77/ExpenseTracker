@@ -33,6 +33,11 @@ jobs:
       - name: Configure Docker authentication
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev
       
+      - name: Explicitly authenticate Docker
+        run: |
+          echo $GOOGLE_APPLICATION_CREDENTIALS
+          cat $GOOGLE_APPLICATION_CREDENTIALS | docker login -u _json_key --password-stdin https://europe-west1-docker.pkg.dev
+      
       - name: Build Docker image
         run: |
           docker build -f docker/build/SampleCkWebApp.Dockerfile \
