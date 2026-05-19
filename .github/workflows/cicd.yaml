@@ -32,6 +32,14 @@ jobs:
 
       - name: Configure Docker authentication
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev
+      
+      - name: Verify permissions
+        run: |
+          gcloud auth list
+          gcloud projects get-iam-policy ${{ env.PROJECT_ID }} \
+            --flatten="bindings[].members" \
+            --filter="bindings.members:serviceAccount:*" \
+            --format="table(bindings.role)"
 
       - name: Build Docker image
         run: |
