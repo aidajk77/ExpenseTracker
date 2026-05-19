@@ -33,25 +33,16 @@ jobs:
       - name: Configure Docker authentication
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev
       
-      - name: Explicitly authenticate Docker
-        run: |
-          echo $GOOGLE_APPLICATION_CREDENTIALS
-          cat $GOOGLE_APPLICATION_CREDENTIALS | docker login -u _json_key --password-stdin https://europe-west1-docker.pkg.dev
-      
       - name: Build Docker image
         run: |
           docker build -f docker/build/SampleCkWebApp.Dockerfile \
             -t europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest \
             -t europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
-
-      - name: Push using gcloud
+      - name: Push Docker image
         run: |
-          gcloud builds submit \
-            --region europe-west1 \
-            --dockerfile=docker/build/SampleCkWebApp.Dockerfile \
-            --tag europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest \
-            --tag europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest
+          docker push europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |
