@@ -27,6 +27,12 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      - name: Debug credentials
+        run: |
+          gcloud auth list
+          gcloud config get-value project
+          gcloud iam service-accounts describe expensetrackerbackend@expensetracker-496010.iam.gserviceaccount.com
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
