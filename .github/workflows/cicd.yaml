@@ -26,20 +26,19 @@ jobs:
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Debug credentials
-        run: |
-          gcloud auth list
-          gcloud config get-value project
-          gcloud iam service-accounts describe expensetrackerbackend@expensetracker-496010.iam.gserviceaccount.com
+          token_format: access_token
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Configure Docker authentication
+      - name: Debug credentials
         run: |
-          gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
-          gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://europe-west1-docker.pkg.dev
+          gcloud config get-value project
+          gcloud iam service-accounts describe expensetrackerbackend@expensetracker-496010.iam.gserviceaccount.com
+
+      - name: Configure Docker authentication
+        run: gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://europe-west1-docker.pkg.dev
+      
       
       - name: Build Docker image
         run: |
