@@ -81,7 +81,21 @@ jobs:
             -t europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
           echo "Docker image built successfully"
+          
+      - name: Debug Artifact Registry permissions
+        run: |
+          echo "=== Active auth ==="
+          gcloud auth list
+          gcloud config list
 
+          echo "=== Test upload permission ==="
+          gcloud artifacts repositories test-iam-permissions expensetracker-backend \
+            --location=${{ env.GCP_REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --permissions=artifactregistry.repositories.uploadArtifacts,artifactregistry.repositories.downloadArtifacts
+
+          echo "=== Docker credential helper ==="
+          docker-credential-gcloud get <<< "https://${{ env.GCP_REGION }}-docker.pkg.dev" || true
       - name: Push Docker image
         run: |
           echo "=== Pushing Docker Images ==="
