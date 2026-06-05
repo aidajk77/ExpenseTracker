@@ -38,7 +38,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: 'projects/943792936542/locations/global/workloadIdentityPools/github-pool1/providers/github-provider-v2'
+          workload_identity_provider: 'projects/943792936542/locations/global/workloadIdentityPools/github-pool1/providers/github-provider2'
           service_account: 'expensetrackerbackend@expensetracker-496010.iam.gserviceaccount.com'
 
       - name: Check Authentication Status
