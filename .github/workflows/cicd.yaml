@@ -62,7 +62,7 @@ jobs:
       - name: Test Google Cloud Access
         run: |
           echo "=== Testing Google Cloud Access ==="
-          gcloud projects describe ${{ env.PROJECT_ID }} --format='value(projectId,name)' || echo "ERROR: Cannot access project"
+          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }} --format='value(projectId,name)' || echo "ERROR: Cannot access project"
           echo ""
           echo "=== Listing Artifact Registry Repositories ==="
           gcloud artifacts repositories list --location=${{ env.GCP_REGION }} || echo "ERROR: Cannot list repositories"
@@ -77,8 +77,8 @@ jobs:
         run: |
           echo "=== Building Docker Image ==="
           docker build -f docker/build/SampleCkWebApp.Dockerfile \
-            -t europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest \
-            -t europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -t europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest \
+            -t europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
           echo "Docker image built successfully"
 
