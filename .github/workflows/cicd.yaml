@@ -26,29 +26,69 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Print GitHub Context (Debug)
+        run: |
+          echo "=== GitHub Context ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: 'projects/943792936542/locations/global/workloadIdentityPools/github-pool1/providers/github-provider-v2'
           service_account: 'expensetrackerbackend@expensetracker-496010.iam.gserviceaccount.com'
 
+      - name: Check Authentication Status
+        run: |
+          echo "=== Authentication Status ==="
+          gcloud auth list
+          echo ""
+          echo "=== Current Project ==="
+          gcloud config get-value project
+          echo ""
+          echo "=== Service Account Info ==="
+          gcloud auth application-default print-access-token | head -c 50
+          echo "... (truncated for security)"
+          echo ""
+          echo "=== Credentials File Location ==="
+          ls -la $GOOGLE_APPLICATION_CREDENTIALS 2>/dev/null || echo "Credentials loaded in memory"
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Test Google Cloud Access
+        run: |
+          echo "=== Testing Google Cloud Access ==="
+          gcloud projects describe ${{ env.PROJECT_ID }} --format='value(projectId,name)' || echo "ERROR: Cannot access project"
+          echo ""
+          echo "=== Listing Artifact Registry Repositories ==="
+          gcloud artifacts repositories list --location=${{ env.GCP_REGION }} || echo "ERROR: Cannot list repositories"
+
       - name: Configure Docker authentication
-        run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+        run: |
+          echo "=== Configuring Docker Authentication ==="
+          gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+          echo "Docker authentication configured successfully"
 
       - name: Build Docker image
         run: |
+          echo "=== Building Docker Image ==="
           docker build -f docker/build/SampleCkWebApp.Dockerfile \
             -t europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest \
             -t europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
+          echo "Docker image built successfully"
 
       - name: Push Docker image
         run: |
+          echo "=== Pushing Docker Images ==="
           docker push europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:latest
+          echo "Pushed latest tag"
           docker push europe-west1-docker.pkg.dev/${{ env.PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          echo "Pushed SHA tag"
 
       - id: deploy
         name: Deploy to Cloud Run
@@ -64,5 +104,22 @@ jobs:
             --timeout=3600
             --set-env-vars=ASPNETCORE_ENVIRONMENT=Production
 
-      - name: Display Cloud Run service URL
-        run: 'curl "${{ steps.deploy.outputs.url }}"'
+      - name: Display Deployment Result
+        run: |
+          echo "=== Deployment Complete ==="
+          echo "Service: ${{ env.SERVICE_NAME }}"
+          echo "Region: ${{ env.GCP_REGION }}"
+          echo "URL: ${{ steps.deploy.outputs.url }}"
+
+      - name: Test Service URL
+        run: |
+          echo "=== Testing Service URL ==="
+          curl -i "${{ steps.deploy.outputs.url }}" || echo "ERROR: Cannot reach service URL"
+
+      - name: Show Workflow Summary
+        if: always()
+        run: |
+          echo "=== Workflow Summary ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Status: ${{ job.status }}"
