@@ -81,21 +81,24 @@ jobs:
             -t europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/expensetracker-backend/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
           echo "Docker image built successfully"
-          
-      - name: Debug Artifact Registry permissions
-        run: |
-          echo "=== Active auth ==="
-          gcloud auth list
-          gcloud config list
 
-          echo "=== Test upload permission ==="
-          gcloud artifacts repositories test-iam-permissions expensetracker-backend \
+      - name: Debug Artifact Registry upload permission
+        run: |
+          echo "=== Artifact Registry IAM binding for service account ==="
+          gcloud artifacts repositories get-iam-policy expensetracker-backend \
             --location=${{ env.GCP_REGION }} \
             --project=${{ env.PROJECT_ID }} \
-            --permissions=artifactregistry.repositories.uploadArtifacts,artifactregistry.repositories.downloadArtifacts
+            --flatten="bindings[].members" \
+            --filter="bindings.members:expensetrackerbackend@expensetracker-496010.iam.gserviceaccount.com" \
+            --format="table(bindings.role,bindings.members,bindings.condition.expression)"
 
-          echo "=== Docker credential helper ==="
-          docker-credential-gcloud get <<< "https://${{ env.GCP_REGION }}-docker.pkg.dev" || true
+          echo "=== Test uploadArtifacts permission via REST ==="
+          TOKEN="$(gcloud auth print-access-token)"
+          curl -s -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://artifactregistry.googleapis.com/v1/projects/${{ env.PROJECT_ID }}/locations/${{ env.GCP_REGION }}/repositories/expensetracker-backend:testIamPermissions" \
+            -d '{"permissions":["artifactregistry.repositories.uploadArtifacts","artifactregistry.repositories.downloadArtifacts"]}'
       - name: Push Docker image
         run: |
           echo "=== Pushing Docker Images ==="
