@@ -118,7 +118,7 @@ var builder = WebApplication.CreateBuilder(args);
     {
         options.AddPolicy("AllowFrontend", policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
+            policy.WithOrigins("http://localhost:5173","https://expensetracker-frontend-pe55lzh2fa-ew.a.run.app")
                   .AllowAnyMethod()
                   .AllowAnyHeader()
                   .AllowCredentials();
