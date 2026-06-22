@@ -77,7 +77,7 @@ RUN dotnet publish "${APP_NAME}.WebApi.csproj" \
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENV ASPNETCORE_URLS=http://+:5000
+ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENTRYPOINT ["dotnet", "SampleCkWebApp.WebApi.dll"]
 # END STAGE 5
