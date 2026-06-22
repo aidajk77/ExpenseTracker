@@ -135,9 +135,10 @@ Log.Logger.Information("Application starting");
 
 var app = builder.Build();
 {
+    app.UseRouting();
+    
     app.UseCors("AllowFrontend");
     
-    app.UseRouting();
 
     app.UseAuthentication();
     app.UseAuthorization();
